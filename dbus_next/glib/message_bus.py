@@ -1,9 +1,10 @@
-from ..unmarshaller import Unmarshaller
+from .._private.unmarshaller import Unmarshaller
 from ..constants import BusType
 from ..message import Message
-from ..constants import MessageType, MessageFlag, NameFlag, nop
+from ..constants import MessageType, MessageFlag, NameFlag
 from ..message_bus import BaseMessageBus
-from ..auth import auth_external, auth_begin, auth_parse_line, AuthResponse, AuthError
+from .._private.auth import auth_external, auth_begin, auth_parse_line, AuthResponse
+from ..errors import AuthError
 from .proxy_object import ProxyObject
 
 import logging
@@ -11,7 +12,7 @@ import io
 from gi.repository import GLib
 
 
-class MessageSource(GLib.Source):
+class _MessageSource(GLib.Source):
     def __init__(self, bus):
         self.unmarshaller = None
         self.bus = bus
@@ -40,7 +41,7 @@ class MessageSource(GLib.Source):
         return GLib.SOURCE_CONTINUE
 
 
-class MessageWritableSource(GLib.Source):
+class _MessageWritableSource(GLib.Source):
     def __init__(self, bus):
         self.bus = bus
         self.buf = b''
@@ -85,7 +86,7 @@ class MessageWritableSource(GLib.Source):
             return GLib.SOURCE_REMOVE
 
 
-class AuthLineSource(GLib.Source):
+class _AuthLineSource(GLib.Source):
     def __init__(self, stream):
         self.stream = stream
         self.buf = b''
@@ -111,14 +112,14 @@ class MessageBus(BaseMessageBus):
         self.main_context = main_context if main_context else GLib.main_context_default()
 
     def auth_readline(self, callback):
-        readline_source = AuthLineSource(self.stream)
+        readline_source = _AuthLineSource(self.stream)
         readline_source.set_callback(callback)
         readline_source.add_unix_fd(self.fd, GLib.IO_IN)
         readline_source.attach(self.main_context)
         # make sure it doesnt get cleaned up
         self._readline_source = readline_source
 
-    def connect(self, connect_notify=nop):
+    def connect(self, connect_notify=None):
         self.stream.write(b'\0')
         self.stream.write(auth_external())
         self.stream.flush()
@@ -132,7 +133,7 @@ class MessageBus(BaseMessageBus):
             self.stream.write(auth_begin())
             self.stream.flush()
 
-            self.message_source = MessageSource(self)
+            self.message_source = _MessageSource(self)
             self.message_source.set_callback(self.on_message)
             self.message_source.attach(self.main_context)
 
@@ -142,7 +143,8 @@ class MessageBus(BaseMessageBus):
 
             def on_hello(reply, err):
                 if err:
-                    connect_notify(reply, err)
+                    if connect_notify:
+                        connect_notify(reply, err)
                     return
 
                 self.name = reply.body[0]
@@ -150,7 +152,8 @@ class MessageBus(BaseMessageBus):
                 for m in self.buffered_messages:
                     self.send(m)
 
-                connect_notify(self, err)
+                if connect_notify:
+                    connect_notify(self, err)
 
             def on_match_added(reply, err):
                 if err:
@@ -302,7 +305,7 @@ class MessageBus(BaseMessageBus):
 
     def schedule_write(self):
         if self.writable_source is None or self.writable_source.is_destroyed():
-            self.writable_source = MessageWritableSource(self)
+            self.writable_source = _MessageWritableSource(self)
             self.writable_source.attach(self.main_context)
             self.writable_source.add_unix_fd(self.fd, GLib.IO_OUT)
 

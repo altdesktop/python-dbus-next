@@ -1,8 +1,9 @@
 from ..message_bus import BaseMessageBus
-from ..unmarshaller import Unmarshaller
+from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag
-from ..auth import auth_external, auth_parse_line, auth_begin, AuthResponse, AuthError
+from .._private.auth import auth_external, auth_parse_line, auth_begin, AuthResponse
+from ..errors import AuthError
 from .proxy_object import ProxyObject
 
 import logging

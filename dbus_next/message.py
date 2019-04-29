@@ -1,12 +1,9 @@
-from .signature import SignatureTree
-from .marshaller import Marshaller
+from ._private.marshaller import Marshaller
 from .variant import Variant
 from .constants import MessageType, MessageFlag, HeaderField, PROTOCOL_VERSION, LITTLE_ENDIAN, ErrorType
 from .validators import is_bus_name_valid, is_member_name_valid, is_object_path_valid, is_interface_name_valid
-
-
-class InvalidMessageError(ValueError):
-    pass
+from .errors import InvalidMessageError
+from .signature import SignatureTree
 
 
 class Message:

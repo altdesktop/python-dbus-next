@@ -1,4 +1,4 @@
-from .signature import SignatureTree
+from ..signature import SignatureTree
 from struct import pack
 
 

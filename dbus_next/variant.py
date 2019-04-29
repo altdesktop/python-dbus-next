@@ -23,8 +23,9 @@ class Variant:
             signature_str = signature_tree.signature
             signature_type = signature_tree.types[0]
 
+        signature_type.verify(value)
+
         self.type = signature_type
-        self.type.verify(value)
         self.signature = signature_str
         self.value = value
 

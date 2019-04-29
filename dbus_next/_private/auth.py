@@ -2,10 +2,6 @@ import os
 import enum
 
 
-class AuthError(Exception):
-    pass
-
-
 class AuthResponse(enum.Enum):
     OK = 'OK'
     REJECTED = 'REJECTED'

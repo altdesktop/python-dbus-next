@@ -1,10 +1,9 @@
-from .constants import BusType, MessageFlag
-from .address import get_bus_address, parse_address, InvalidAddressError
+from ._private.address import get_bus_address, parse_address
 from .message import Message
-from .constants import MessageType, ErrorType, NameFlag, RequestNameReply, ReleaseNameReply
+from .constants import BusType, MessageFlag, MessageType, ErrorType, NameFlag, RequestNameReply, ReleaseNameReply
 from .service_interface import ServiceInterface
 from .validators import assert_object_path_valid, assert_bus_name_valid
-from .errors import DBusError
+from .errors import DBusError, InvalidAddressError
 from .variant import Variant
 from . import introspection as intr
 
@@ -28,14 +27,11 @@ class BaseMessageBus():
         self.name_owners = {}
         self.path_exports = {}
         self.disconnected = False
+        self.bus_address = parse_address(bus_address) if bus_address else parse_address(
+            get_bus_address(bus_type))
 
         # machine id is lazy loaded
         self.machine_id = None
-
-        if bus_address:
-            self.bus_address = parse_address(bus_address)
-        else:
-            self.bus_address = parse_address(get_bus_address(bus_type))
 
         self.setup_socket()
 

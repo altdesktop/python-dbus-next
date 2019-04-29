@@ -1,13 +1,9 @@
-from .constants import BusType
+from ..constants import BusType
+from ..errors import InvalidAddressError
 
 from urllib.parse import unquote
 import re
 import os
-
-
-class InvalidAddressError(ValueError):
-    pass
-
 
 invalid_address_chars_re = re.compile(r'[^-0-9A-Za-z_/.%]')
 

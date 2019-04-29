@@ -1,13 +1,6 @@
 from .validators import is_object_path_valid
 from .variant import Variant
-
-
-class InvalidSignatureError(ValueError):
-    pass
-
-
-class SignatureBodyMismatchError(ValueError):
-    pass
+from .errors import InvalidSignatureError, SignatureBodyMismatchError
 
 
 class SignatureType:
@@ -24,17 +17,24 @@ class SignatureType:
             return super().__eq__(other)
 
     def collapse(self):
-        signature = self.token
+        if self.token not in 'a({':
+            return self.token
+
+        signature = [self.token]
 
         for child in self.children:
-            signature += child.collapse()
+            signature.append(child.collapse())
 
         if self.token == '(':
-            signature += ')'
+            signature.append(')')
         elif self.token == '{':
-            signature += '}'
+            signature.append('}')
 
-        return signature
+        return ''.join(signature)
+
+    @property
+    def signature(self):
+        return self.collapse()
 
     def parse_next(signature):
         if not signature:
@@ -257,11 +257,10 @@ class SignatureType:
 class SignatureTree:
     def __init__(self, signature=''):
         self.signature = signature
+        self.types = []
 
         if len(signature) > 0xff:
             raise InvalidSignatureError('A signature must be less than 256 characters')
-
-        self.types = []
 
         while signature:
             (type_, signature) = SignatureType.parse_next(signature)

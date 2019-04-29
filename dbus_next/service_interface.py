@@ -3,27 +3,21 @@ from .signature import SignatureTree, SignatureBodyMismatchError
 from . import introspection as intr
 from .message import Message
 from .variant import Variant
+from .errors import SignalDisabledError
 
 from functools import wraps
 import inspect
 
 
-class SignalDisabledError(Exception):
-    pass
-
-
 class Method:
     def __init__(self, fn, name, disabled=False):
-        self.fn = fn
-        self.name = name
-        self.disabled = disabled
-        self.in_signature = ''
-        self.out_signature = ''
+        in_signature = ''
+        out_signature = ''
 
         inspection = inspect.signature(fn)
 
         in_args = []
-        for i, (name, param) in enumerate(inspection.parameters.items()):
+        for i, param in enumerate(inspection.parameters.values()):
             if i == 0:
                 # first is self
                 continue
@@ -32,18 +26,22 @@ class Method:
                     'method parameters must specify the dbus type string as a return annotation string'
                 )
             in_args.append(intr.Arg(param.annotation, intr.ArgDirection.IN, param.name))
-            self.in_signature += param.annotation
+            in_signature += param.annotation
 
         out_args = []
         if inspection.return_annotation is not inspect.Signature.empty:
-            self.out_signature = inspection.return_annotation
+            out_signature = inspection.return_annotation
             for type_ in SignatureTree(inspection.return_annotation).types:
                 out_args.append(intr.Arg(type_, intr.ArgDirection.OUT))
 
-        self.introspection = intr.Method(self.name, in_args, out_args)
-
-        self.in_signature_tree = SignatureTree(self.in_signature)
-        self.out_signature_tree = SignatureTree(self.out_signature)
+        self.name = name
+        self.fn = fn
+        self.disabled = disabled
+        self.introspection = intr.Method(name, in_args, out_args)
+        self.in_signature = in_signature
+        self.out_signature = out_signature
+        self.in_signature_tree = SignatureTree(in_signature)
+        self.out_signature_tree = SignatureTree(out_signature)
 
 
 def method(name=None, disabled=False):
@@ -62,21 +60,25 @@ def method(name=None, disabled=False):
 
 class Signal:
     def __init__(self, fn, name, disabled=False):
-        self.name = name
-        self.disabled = disabled
-
         inspection = inspect.signature(fn)
 
         args = []
+        signature = ''
+        signature_tree = None
+
         if inspection.return_annotation is not inspect.Signature.empty:
-            self.signature = inspection.return_annotation
-            self.signature_tree = SignatureTree(self.signature)
-            for type_ in self.signature_tree.types:
+            signature = inspection.return_annotation
+            signature_tree = SignatureTree(signature)
+            for type_ in signature_tree.types:
                 args.append(intr.Arg(type_, intr.ArgDirection.OUT))
         else:
-            self.signature = ''
-            self.signature_tree = SignatureTree('')
+            signature = ''
+            signature_tree = SignatureTree('')
 
+        self.signature = signature
+        self.signature_tree = signature_tree
+        self.name = name
+        self.disabled = disabled
         self.introspection = intr.Signal(self.name, args)
 
 
@@ -173,7 +175,6 @@ def dbus_property(access=PropertyAccess.READWRITE, name=None, disabled=False):
 class ServiceInterface:
     def __init__(self, name):
         self.name = name
-
         self.__methods = []
         self.__properties = []
         self.__signals = []

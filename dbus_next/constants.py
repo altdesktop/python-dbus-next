@@ -24,9 +24,6 @@ class MessageFlag(IntFlag):
     NO_AUTOSTART = 2
     ALLOW_INTERACTIVE_AUTHORIZATION = 4
 
-    def value_bytes(self):
-        return bytes([self.value])
-
 
 class NameFlag(IntFlag):
     NONE = 0
@@ -113,7 +110,3 @@ class ErrorType(Enum):
     MATCH_RULE_NOT_FOUND = "org.freedesktop.DBus.Error.MatchRuleNotFound"
     MATCH_RULE_INVALID = "org.freedesktop.DBus.Error.MatchRuleInvalid"
     INTERACTIVE_AUTHORIZATION_REQUIRED = "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired"
-
-
-def nop(*args, **kwargs):
-    pass

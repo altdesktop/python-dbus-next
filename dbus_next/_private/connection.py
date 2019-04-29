@@ -1,11 +1,8 @@
-from .address import parse_address, InvalidAddressError
+from .address import parse_address
+from ..errors import InvalidAddressError, AuthError
 
 import os
 import socket
-
-
-class AuthorizationError(Exception):
-    pass
 
 
 class Connection:
@@ -29,7 +26,7 @@ class Connection:
         self.sock.sendall(f'\0AUTH EXTERNAL {hex_uid}\r\n'.encode())
         resp = readline()
         if resp[:2] != b'OK':
-            raise AuthorizationError(f'DBus authorization failed with response: "{resp}"')
+            raise AuthError(f'DBus authorization failed with response: "{resp}"')
         self.stream.write('BEGIN\r\n'.encode())
 
     def setup_socket(self):

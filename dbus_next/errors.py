@@ -1,5 +1,57 @@
-from .validators import assert_interface_name_valid
+class SignatureBodyMismatchError(ValueError):
+    pass
+
+
+class InvalidSignatureError(ValueError):
+    pass
+
+
+class InvalidAddressError(ValueError):
+    pass
+
+
+class AuthError(Exception):
+    pass
+
+
+class InvalidMessageError(ValueError):
+    pass
+
+
+class InvalidIntrospectionError(ValueError):
+    pass
+
+
+class InterfaceNotFoundError(Exception):
+    pass
+
+
+class SignalDisabledError(Exception):
+    pass
+
+
+class InvalidBusNameError(TypeError):
+    def __init__(self, name):
+        super(f'invalid bus name: {name}')
+
+
+class InvalidObjectPathError(TypeError):
+    def __init__(self, path):
+        super(f'invalid object path: {path}')
+
+
+class InvalidInterfaceNameError(TypeError):
+    def __init__(self, name):
+        super(f'invalid interface name: {name}')
+
+
+class InvalidMemberNameError(TypeError):
+    def __init__(self, member):
+        super(f'invalid member name: {member}')
+
+
 from .message import Message
+from .validators import assert_interface_name_valid
 from .constants import ErrorType, MessageType
 
 import traceback

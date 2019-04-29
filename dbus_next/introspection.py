@@ -1,17 +1,12 @@
 from .constants import PropertyAccess, ArgDirection
 from .signature import SignatureTree, SignatureType
 from .validators import assert_member_name_valid, assert_interface_name_valid
+from .errors import InvalidIntrospectionError
 
 import xml.etree.ElementTree as ET
 
 # https://dbus.freedesktop.org/doc/dbus-specification.html#introspection-format
 # TODO annotations
-
-header = '<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"\n"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">\n'
-
-
-class InvalidIntrospectionError(ValueError):
-    pass
 
 
 class Arg:
@@ -19,18 +14,21 @@ class Arg:
         if name is not None:
             assert_member_name_valid(name)
 
-        self.name = name
-        self.direction = direction
+        type_ = None
         if type(signature) is SignatureType:
-            self.type = signature
-            self.signature = signature.collapse()
+            type_ = signature
+            signature = signature.collapse()
         else:
-            self.signature = signature
             tree = SignatureTree(signature)
             if len(tree.types) != 1:
                 raise InvalidIntrospectionError(
                     f'an argument must have a single complete type. (has {len(tree.types)} types)')
-            self.type = tree.types[0]
+            type_ = tree.types[0]
+
+        self.type = type_
+        self.signature = signature
+        self.name = name
+        self.direction = direction
 
     def from_xml(element, direction):
         name = element.attrib.get('name')
@@ -60,10 +58,7 @@ class Signal:
 
         self.name = name
         self.args = args or []
-        self.signature = ''
-
-        for arg in self.args:
-            self.signature += arg.signature
+        self.signature = ''.join(arg.signature for arg in self.args)
 
     def from_xml(element):
         name = element.attrib.get('name')
@@ -96,14 +91,8 @@ class Method:
         self.name = name
         self.in_args = in_args
         self.out_args = out_args
-
-        self.in_signature = ''
-        self.out_signature = ''
-
-        for arg in self.in_args:
-            self.in_signature += arg.signature
-        for arg in self.out_args:
-            self.out_signature += arg.signature
+        self.in_signature = ''.join(arg.signature for arg in in_args)
+        self.out_signature = ''.join(arg.signature for arg in out_args)
 
     def from_xml(element):
         name = element.attrib.get('name')
@@ -140,15 +129,14 @@ class Property:
     def __init__(self, name, signature, access=PropertyAccess.READWRITE):
         assert_member_name_valid(name)
 
-        self.name = name
-        self.signature = signature
-        self.access = access
-
         tree = SignatureTree(signature)
         if len(tree.types) != 1:
             raise InvalidIntrospectionError(
                 f'properties must have a single complete type. (has {len(tree.types)} types)')
 
+        self.name = name
+        self.signature = signature
+        self.access = access
         self.type = tree.types[0]
 
     def from_xml(element):
@@ -213,13 +201,13 @@ class Interface:
 
 class Node:
     def __init__(self, name=None, interfaces=None, is_root=True):
+        if not is_root and not name:
+            raise InvalidIntrospectionError('child nodes must have a "name" attribute')
+
         self.interfaces = interfaces if interfaces is not None else []
         self.nodes = []
         self.name = name
         self.is_root = is_root
-
-        if not is_root and not name:
-            raise InvalidIntrospectionError('child nodes must have a "name" attribute')
 
     def from_xml(element, is_root=False):
         node = Node(element.attrib.get('name'), is_root=is_root)
@@ -255,6 +243,8 @@ class Node:
         return element
 
     def tostring(self):
+        header = '<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"\n"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">\n'
+
         def indent(elem, level=0):
             i = "\n" + level * "    "
             if len(elem):

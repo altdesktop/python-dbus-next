@@ -3,16 +3,12 @@ from .message_bus import BaseMessageBus
 from .message import Message
 from .constants import MessageType, ErrorType
 from . import introspection as intr
-from .errors import DBusError
+from .errors import DBusError, InterfaceNotFoundError
 
 import logging
 import xml.etree.ElementTree as ET
 import inspect
 import re
-
-
-class InterfaceNotFoundError(Exception):
-    pass
 
 
 class BaseProxyInterface:
@@ -72,11 +68,8 @@ class BaseProxyObject:
         self.ProxyInterface = ProxyInterface
 
         self.interfaces = []
-        self.child_names = []
+        self.child_names = [f'{path}/{n.name}' for n in self.node.nodes]
         self.signal_handlers = {}
-
-        for n in self.node.nodes:
-            self.child_names.append(f'{path}/{n.name}')
 
     def add_signal(self, intr_signal, interface):
         def on_signal_fn(fn):

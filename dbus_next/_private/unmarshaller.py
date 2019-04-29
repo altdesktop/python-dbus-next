@@ -1,12 +1,10 @@
-from .message import Message
-from .constants import MessageType, MessageFlag, HeaderField, LITTLE_ENDIAN, BIG_ENDIAN
-from .signature import SignatureTree
-from .variant import Variant
+from ..message import Message
+from ..constants import MessageType, MessageFlag, HeaderField, LITTLE_ENDIAN, BIG_ENDIAN
+from ..signature import SignatureTree
+from ..variant import Variant
+from ..errors import InvalidMessageError
+
 from struct import unpack
-
-
-class InvalidMessageError(Exception):
-    pass
 
 
 class MarshallerStreamEndError(Exception):
@@ -142,7 +140,6 @@ class Unmarshaller:
         signature = self.read_signature()
         signature_tree = SignatureTree(signature)
         value = self.read_argument(signature_tree.types[0])
-        # TODO pass signature_tree directly to the variant so it isn't parsed again
         return Variant(signature_tree, value)
 
     def read_struct(self, type_):
