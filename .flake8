@@ -4,3 +4,8 @@ ignore=
     E126
     E402
     F722
+
+# F821 is still relevant, but causes too many false positives
+per-file-ignores=
+    test/*:F821
+    examples/*:F821

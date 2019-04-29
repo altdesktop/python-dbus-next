@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface, method
+from dbus_next.service import ServiceInterface, method
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.message import Message
 from dbus_next.constants import MessageType, ErrorType
@@ -65,7 +65,7 @@ async def test_methods():
 
     async def call(member, signature='', body=[]):
         return await bus2.call(
-            Message(destination=bus1.name,
+            Message(destination=bus1.unique_name,
                     path=export_path,
                     interface=interface.name,
                     member=member,

@@ -1,6 +1,6 @@
 from dbus_next.aio.message_bus import MessageBus as AIOMessageBus
 from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
-from dbus_next.service_interface import ServiceInterface, dbus_property
+from dbus_next.service import ServiceInterface, dbus_property
 from dbus_next.errors import DBusError
 from dbus_next.message import Message
 
@@ -38,8 +38,8 @@ async def test_aio_properties():
     service_bus.export('/test/path', service_interface)
 
     bus = await AIOMessageBus().connect()
-    obj = bus.get_proxy_object(service_bus.name, '/test/path',
-                               service_bus.introspect_export_path('/test/path'))
+    obj = bus.get_proxy_object(service_bus.unique_name, '/test/path',
+                               service_bus._introspect_export_path('/test/path'))
     interface = obj.get_interface(service_interface.name)
 
     prop = await interface.get_some_property()
@@ -77,8 +77,8 @@ def test_glib_properties():
     service_bus.export('/test/path', service_interface)
 
     bus = GLibMessageBus().connect_sync()
-    obj = bus.get_proxy_object(service_bus.name, '/test/path',
-                               service_bus.introspect_export_path('/test/path'))
+    obj = bus.get_proxy_object(service_bus.unique_name, '/test/path',
+                               service_bus._introspect_export_path('/test/path'))
     interface = obj.get_interface(service_interface.name)
 
     prop = interface.get_some_property_sync()

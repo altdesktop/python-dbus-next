@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface, signal
+from dbus_next.service import ServiceInterface, signal
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.message import Message
 
@@ -28,12 +28,12 @@ async def test_signals():
     bus1.export('/test/path', service_interface)
 
     obj = bus2.get_proxy_object('test.signals.name', '/test/path',
-                                bus1.introspect_export_path('/test/path'))
+                                bus1._introspect_export_path('/test/path'))
     interface = obj.get_interface(service_interface.name)
 
     async def ping():
         await bus2.call(
-            Message(destination=bus1.name,
+            Message(destination=bus1.unique_name,
                     interface='org.freedesktop.DBus.Peer',
                     path='/test/path',
                     member='Ping'))
@@ -85,7 +85,7 @@ async def test_signals():
     bus3.export('/test/path', service_interface2)
 
     obj = bus2.get_proxy_object('test.signals.name2', '/test/path',
-                                bus3.introspect_export_path('/test/path'))
+                                bus3._introspect_export_path('/test/path'))
     # add the match rule
     obj.get_interface(service_interface2.name)
     await ping()

@@ -54,8 +54,6 @@ from .message import Message
 from .validators import assert_interface_name_valid
 from .constants import ErrorType, MessageType
 
-import traceback
-
 
 class DBusError(Exception):
     def __init__(self, type_, text, reply=None):
@@ -73,13 +71,9 @@ class DBusError(Exception):
         self.reply = reply
 
     @staticmethod
-    def from_message(msg):
+    def _from_message(msg):
         assert msg.message_type == MessageType.ERROR
         return DBusError(msg.error_name, msg.body[0], reply=msg)
 
-    @staticmethod
-    def internal_error(msg, text):
-        return DBusError(ErrorType.INTERNAL_ERROR, f'{text}\n{traceback.format_exc()}')
-
-    def as_message(self, msg):
+    def _as_message(self, msg):
         return Message.new_error(msg, self.type, self.text)

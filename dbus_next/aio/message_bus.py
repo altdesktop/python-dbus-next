@@ -15,50 +15,32 @@ class MessageBus(BaseMessageBus):
     def __init__(self, bus_address=None, bus_type=BusType.SESSION, loop=None):
         super().__init__(bus_address, bus_type)
         self.loop = loop if loop else asyncio.get_event_loop()
-        self.unmarshaller = Unmarshaller(self.stream)
-
-    def message_reader(self):
-        try:
-            while True:
-                if self.unmarshaller.unmarshall():
-                    self.on_message(self.unmarshaller.message)
-                    self.unmarshaller = Unmarshaller(self.stream)
-                else:
-                    break
-        except Exception as e:
-            self.loop.remove_reader(self.fd)
-            self.finalize(e)
-
-    async def auth_readline(self):
-        buf = b''
-        while buf[-2:] != b'\r\n':
-            buf += await self.loop.sock_recv(self.sock, 2)
-        return buf
+        self._unmarshaller = Unmarshaller(self._stream)
 
     async def connect(self):
         future = self.loop.create_future()
 
-        await self.loop.sock_sendall(self.sock, b'\0')
-        await self.loop.sock_sendall(self.sock, auth_external())
-        response, args = auth_parse_line(await self.auth_readline())
+        await self.loop.sock_sendall(self._sock, b'\0')
+        await self.loop.sock_sendall(self._sock, auth_external())
+        response, args = auth_parse_line(await self._auth_readline())
 
         if response != AuthResponse.OK:
             raise AuthError(f'authorization failed: {response.value}: {args}')
 
-        self.stream.write(auth_begin())
-        self.stream.flush()
+        self._stream.write(auth_begin())
+        self._stream.flush()
 
-        self.loop.add_reader(self.fd, self.message_reader)
+        self.loop.add_reader(self._fd, self._message_reader)
 
         def on_hello(reply, err):
             if err:
                 logging.error(f'sending "Hello" message failed: {err}\n{traceback.print_exc()}')
                 self.disconnect(err)
                 return
-            self.name = reply.body[0]
-            for m in self.buffered_messages:
+            self.unique_name = reply.body[0]
+            for m in self._buffered_messages:
                 self.send(m)
-            self.buffered_messages.clear()
+            self._buffered_messages.clear()
             future.set_result(self)
 
         def on_match_added(reply, err):
@@ -82,11 +64,11 @@ class MessageBus(BaseMessageBus):
                                 body=[match],
                                 serial=self.next_serial())
 
-        self.method_return_handlers[hello_msg.serial] = on_hello
-        self.method_return_handlers[add_match_msg.serial] = on_match_added
-        self.stream.write(hello_msg.marshall())
-        self.stream.write(add_match_msg.marshall())
-        self.stream.flush()
+        self._method_return_handlers[hello_msg.serial] = on_hello
+        self._method_return_handlers[add_match_msg.serial] = on_match_added
+        self._stream.write(hello_msg._marshall())
+        self._stream.write(add_match_msg._marshall())
+        self._stream.flush()
 
         return await future
 
@@ -148,12 +130,30 @@ class MessageBus(BaseMessageBus):
         if not msg.serial:
             msg.serial = self.next_serial()
 
-        if not self.name:
+        if not self.unique_name:
             # not connected yet, buffer the message
-            self.buffered_messages.append(msg)
+            self._buffered_messages.append(msg)
             return
 
-        asyncio.ensure_future(self.loop.sock_sendall(self.sock, msg.marshall()))
+        asyncio.ensure_future(self.loop.sock_sendall(self._sock, msg._marshall()))
 
     def get_proxy_object(self, bus_name, path, introspection):
         return ProxyObject(bus_name, path, introspection, self)
+
+    def _message_reader(self):
+        try:
+            while True:
+                if self._unmarshaller.unmarshall():
+                    self._on_message(self._unmarshaller.message)
+                    self._unmarshaller = Unmarshaller(self._stream)
+                else:
+                    break
+        except Exception as e:
+            self.loop.remove_reader(self._fd)
+            self._finalize(e)
+
+    async def _auth_readline(self):
+        buf = b''
+        while buf[-2:] != b'\r\n':
+            buf += await self.loop.sock_recv(self._sock, 2)
+        return buf

@@ -43,7 +43,7 @@ async def test_name_requests():
     assert reply == ReleaseNameReply.NOT_OWNER
 
     new_owner = await get_name_owner(test_name)
-    assert new_owner == bus2.name
+    assert new_owner == bus2.unique_name
 
     reply = await bus1.request_name(test_name, NameFlag.DO_NOT_QUEUE)
     assert reply == RequestNameReply.EXISTS

@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface, dbus_property, method
+from dbus_next.service import ServiceInterface, dbus_property, method
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.message import Message
 from dbus_next.constants import MessageType, PropertyAccess, ErrorType
@@ -63,10 +63,10 @@ class ExampleInterface(ServiceInterface):
         raise DBusError('test.error', 'told you so')
 
     @method()
-    def emit_properties_changed(self):
+    def do_emit_properties_changed(self):
         changed = {'string_prop': 'asdf'}
         invalidated = ['container_prop']
-        ServiceInterface.emit_properties_changed(self, changed, invalidated)
+        self.emit_properties_changed(changed, invalidated)
 
 
 @pytest.mark.asyncio
@@ -80,7 +80,7 @@ async def test_property_methods():
 
     async def call_properties(member, signature, body):
         return await bus2.call(
-            Message(destination=bus1.name,
+            Message(destination=bus1.unique_name,
                     path=export_path,
                     interface='org.freedesktop.DBus.Properties',
                     member=member,
@@ -132,7 +132,7 @@ async def test_property_methods():
     assert result.error_name == ErrorType.INVALID_SIGNATURE.value
 
     # enable the erroring property so we can test it
-    for prop in ServiceInterface.get_properties(interface):
+    for prop in ServiceInterface._get_properties(interface):
         if prop.name == 'throws_error':
             prop.disabled = False
 
@@ -165,7 +165,7 @@ async def test_property_changed_signal():
                 interface='org.freedesktop.DBus',
                 member='AddMatch',
                 signature='s',
-                body=[f'sender={bus1.name}']))
+                body=[f'sender={bus1.unique_name}']))
 
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
@@ -184,10 +184,10 @@ async def test_property_changed_signal():
         return await future
 
     bus2.send(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 interface=interface.name,
                 path=export_path,
-                member='emit_properties_changed'))
+                member='do_emit_properties_changed'))
 
     signal = await wait_for_message()
     assert signal.interface == 'org.freedesktop.DBus.Properties'

@@ -18,7 +18,7 @@ async def test_standard_interfaces():
     assert reply.message_type == MessageType.METHOD_RETURN
     assert reply.reply_serial == msg.serial
     assert reply.signature == 'as'
-    assert bus.name in reply.body[0]
+    assert bus.unique_name in reply.body[0]
 
     msg.interface = 'org.freedesktop.DBus.Introspectable'
     msg.member = 'Introspect'
@@ -46,14 +46,14 @@ async def test_sending_messages_between_buses():
     bus1 = await MessageBus().connect()
     bus2 = await MessageBus().connect()
 
-    msg = Message(destination=bus1.name,
+    msg = Message(destination=bus1.unique_name,
                   path='/org/test/path',
                   interface='org.test.iface',
                   member='SomeMember',
                   serial=bus2.next_serial())
 
     def message_handler(sent):
-        if sent.sender == bus2.name and sent.serial == msg.serial:
+        if sent.sender == bus2.unique_name and sent.serial == msg.serial:
             assert sent.path == msg.path
             assert sent.serial == msg.serial
             assert sent.interface == msg.interface
@@ -67,13 +67,13 @@ async def test_sending_messages_between_buses():
     reply = await bus2.call(msg)
 
     assert reply.message_type == MessageType.METHOD_RETURN
-    assert reply.sender == bus1.name
+    assert reply.sender == bus1.unique_name
     assert reply.signature == 's'
     assert reply.body == ['got it']
     assert reply.reply_serial == msg.serial
 
     def message_handler_error(sent):
-        if sent.sender == bus2.name and sent.serial == msg.serial:
+        if sent.sender == bus2.unique_name and sent.serial == msg.serial:
             assert sent.path == msg.path
             assert sent.serial == msg.serial
             assert sent.interface == msg.interface
@@ -89,7 +89,7 @@ async def test_sending_messages_between_buses():
     reply = await bus2.call(msg)
 
     assert reply.message_type == MessageType.ERROR
-    assert reply.sender == bus1.name
+    assert reply.sender == bus1.unique_name
     assert reply.reply_serial == msg.serial
     assert reply.error_name == 'org.test.Error'
     assert reply.signature == 's'
@@ -111,7 +111,7 @@ async def test_sending_signals_between_buses(event_loop):
                             interface='org.freedesktop.DBus',
                             member='AddMatch',
                             signature='s',
-                            body=[f'sender={bus2.name}'])
+                            body=[f'sender={bus2.unique_name}'])
 
     await bus1.call(add_match_msg)
 
@@ -119,7 +119,7 @@ async def test_sending_signals_between_buses(event_loop):
         future = event_loop.create_future()
 
         def message_handler(signal):
-            if signal.sender == bus2.name:
+            if signal.sender == bus2.unique_name:
                 bus1.remove_message_handler(message_handler)
                 future.set_result(signal)
 

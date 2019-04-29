@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 
-from dbus_next.service_interface import ServiceInterface, method, signal, dbus_property
+from dbus_next.service import ServiceInterface, method, signal, dbus_property
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.variant import Variant
 

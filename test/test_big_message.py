@@ -2,7 +2,7 @@ from dbus_next.aio.message_bus import MessageBus
 from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
 from dbus_next.message import Message
 from dbus_next.constants import MessageType
-from dbus_next.service_interface import ServiceInterface, method
+from dbus_next.service import ServiceInterface, method
 
 import pytest
 
@@ -27,7 +27,7 @@ async def test_aio_big_message():
     # two megabytes
     big_body = [bytes(1000000) * 2]
     result = await bus2.call(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path='/test/path',
                 interface=interface.name,
                 member='echo_bytes',
@@ -47,7 +47,7 @@ def test_glib_big_message():
     # two megabytes
     big_body = [bytes(1000000) * 2]
     result = bus2.call_sync(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path='/test/path',
                 interface=interface.name,
                 member='echo_bytes',

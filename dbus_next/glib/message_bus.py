@@ -25,9 +25,9 @@ class _MessageSource(GLib.Source):
 
     def dispatch(self, callback, user_data):
         try:
-            while self.bus.stream.readable():
+            while self.bus._stream.readable():
                 if not self.unmarshaller:
-                    self.unmarshaller = Unmarshaller(self.bus.stream)
+                    self.unmarshaller = Unmarshaller(self.bus._stream)
 
                 if self.unmarshaller.unmarshall():
                     callback(self.unmarshaller.message)
@@ -35,7 +35,8 @@ class _MessageSource(GLib.Source):
                 else:
                     break
         except Exception as e:
-            self.bus.finalize(e)
+            self.bus.disconnect()
+            self.bus._finalize(e)
             return GLib.SOURCE_REMOVE
 
         return GLib.SOURCE_CONTINUE
@@ -57,7 +58,7 @@ class _MessageWritableSource(GLib.Source):
     def dispatch(self, callback, user_data):
         try:
             if self.buf:
-                self.bus.stream.write(self.buf)
+                self.bus._stream.write(self.buf)
                 self.buf = b''
 
             if self.message_stream:
@@ -65,24 +66,24 @@ class _MessageWritableSource(GLib.Source):
                     self.buf = self.message_stream.read(self.chunk_size)
                     if self.buf == b'':
                         break
-                    self.bus.stream.write(self.buf)
+                    self.bus._stream.write(self.buf)
                     if len(self.buf) < self.chunk_size:
                         self.buf = b''
                         break
                     self.buf = b''
 
-            self.bus.stream.flush()
+            self.bus._stream.flush()
 
-            if not self.bus.buffered_messages:
+            if not self.bus._buffered_messages:
                 return GLib.SOURCE_REMOVE
             else:
-                message = self.bus.buffered_messages.pop(0)
-                self.message_stream = io.BytesIO(message.marshall())
+                message = self.bus._buffered_messages.pop(0)
+                self.message_stream = io.BytesIO(message._marshall())
                 return GLib.SOURCE_CONTINUE
         except BlockingIOError:
             return GLib.SOURCE_CONTINUE
         except Exception as e:
-            self.bus.finalize(e)
+            self.bus._finalize(e)
             return GLib.SOURCE_REMOVE
 
 
@@ -111,18 +112,10 @@ class MessageBus(BaseMessageBus):
         super().__init__(bus_address, bus_type)
         self.main_context = main_context if main_context else GLib.main_context_default()
 
-    def auth_readline(self, callback):
-        readline_source = _AuthLineSource(self.stream)
-        readline_source.set_callback(callback)
-        readline_source.add_unix_fd(self.fd, GLib.IO_IN)
-        readline_source.attach(self.main_context)
-        # make sure it doesnt get cleaned up
-        self._readline_source = readline_source
-
     def connect(self, connect_notify=None):
-        self.stream.write(b'\0')
-        self.stream.write(auth_external())
-        self.stream.flush()
+        self._stream.write(b'\0')
+        self._stream.write(auth_external())
+        self._stream.flush()
 
         def on_authline(line):
             response, args = auth_parse_line(line)
@@ -130,16 +123,16 @@ class MessageBus(BaseMessageBus):
             if response != AuthResponse.OK:
                 raise AuthError(f'authorization failed: {response.value}: {args}')
 
-            self.stream.write(auth_begin())
-            self.stream.flush()
+            self._stream.write(auth_begin())
+            self._stream.flush()
 
             self.message_source = _MessageSource(self)
-            self.message_source.set_callback(self.on_message)
+            self.message_source.set_callback(self._on_message)
             self.message_source.attach(self.main_context)
 
             self.writable_source = None
 
-            self.message_source.add_unix_fd(self.fd, GLib.IO_IN)
+            self.message_source.add_unix_fd(self._fd, GLib.IO_IN)
 
             def on_hello(reply, err):
                 if err:
@@ -147,9 +140,9 @@ class MessageBus(BaseMessageBus):
                         connect_notify(reply, err)
                     return
 
-                self.name = reply.body[0]
+                self.unique_name = reply.body[0]
 
-                for m in self.buffered_messages:
+                for m in self._buffered_messages:
                     self.send(m)
 
                 if connect_notify:
@@ -176,13 +169,13 @@ class MessageBus(BaseMessageBus):
                                     body=[match],
                                     serial=self.next_serial())
 
-            self.method_return_handlers[hello_msg.serial] = on_hello
-            self.method_return_handlers[add_match_msg.serial] = on_match_added
-            self.stream.write(hello_msg.marshall())
-            self.stream.write(add_match_msg.marshall())
-            self.stream.flush()
+            self._method_return_handlers[hello_msg.serial] = on_hello
+            self._method_return_handlers[add_match_msg.serial] = on_match_added
+            self._stream.write(hello_msg._marshall())
+            self._stream.write(add_match_msg._marshall())
+            self._stream.flush()
 
-        self.auth_readline(on_authline)
+        self._auth_readline(on_authline)
 
     def connect_sync(self):
         main = GLib.MainLoop()
@@ -224,7 +217,7 @@ class MessageBus(BaseMessageBus):
         if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
             return None
         else:
-            self.method_return_handlers[msg.serial] = reply_handler
+            self._method_return_handlers[msg.serial] = reply_handler
             self.send(msg)
             main.run()
 
@@ -299,31 +292,31 @@ class MessageBus(BaseMessageBus):
 
         return release_result
 
-    def on_message(self, msg):
-        super().on_message(msg)
-        self.stream.flush()
-
-    def schedule_write(self):
-        if self.writable_source is None or self.writable_source.is_destroyed():
-            self.writable_source = _MessageWritableSource(self)
-            self.writable_source.attach(self.main_context)
-            self.writable_source.add_unix_fd(self.fd, GLib.IO_OUT)
-
     def send(self, msg):
         if not msg.serial:
             msg.serial = self.next_serial()
 
-        self.buffered_messages.append(msg)
+        self._buffered_messages.append(msg)
 
-        if self.name:
-            self.schedule_write()
-
-    def _call(self, msg, reply_notify=None):
-        super()._call(msg, reply_notify)
-        self.stream.flush()
+        if self.unique_name:
+            self._schedule_write()
 
     def call(self, msg, reply_notify=None):
         self._call(msg, reply_notify)
 
     def get_proxy_object(self, bus_name, path, introspection):
         return ProxyObject(bus_name, path, introspection, self)
+
+    def _schedule_write(self):
+        if self.writable_source is None or self.writable_source.is_destroyed():
+            self.writable_source = _MessageWritableSource(self)
+            self.writable_source.attach(self.main_context)
+            self.writable_source.add_unix_fd(self._fd, GLib.IO_OUT)
+
+    def _auth_readline(self, callback):
+        readline_source = _AuthLineSource(self._stream)
+        readline_source.set_callback(callback)
+        readline_source.add_unix_fd(self._fd, GLib.IO_IN)
+        readline_source.attach(self.main_context)
+        # make sure it doesnt get cleaned up
+        self._readline_source = readline_source

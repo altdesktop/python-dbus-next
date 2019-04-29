@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface, method, signal, dbus_property
+from dbus_next.service import ServiceInterface, method, signal, dbus_property
 from dbus_next.constants import PropertyAccess
 from dbus_next import introspection as intr
 
@@ -55,9 +55,9 @@ def test_method_decorator():
     interface = ExampleInterface()
     assert interface.name == 'test.interface'
 
-    properties = ServiceInterface.get_properties(interface)
-    methods = ServiceInterface.get_methods(interface)
-    signals = ServiceInterface.get_signals(interface)
+    properties = ServiceInterface._get_properties(interface)
+    methods = ServiceInterface._get_methods(interface)
+    signals = ServiceInterface._get_signals(interface)
 
     assert len(methods) == 2
 

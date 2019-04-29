@@ -62,7 +62,7 @@ def test_marshalling_with_table():
             body.append(replace_variants(type_, message.body[i]))
         message.body = body
 
-        buf = message.marshall()
+        buf = message._marshall()
         data = bytes.fromhex(item['data'])
 
         if buf != data:
@@ -108,6 +108,6 @@ def test_unmarshalling_with_table():
 def test_ay_buffer():
     body = [bytes(10000)]
     msg = Message(path='/test', member='test', signature='ay', body=body)
-    marshalled = msg.marshall()
+    marshalled = msg._marshall()
     unmarshalled_msg = Unmarshaller(io.BytesIO(marshalled)).unmarshall()
     assert unmarshalled_msg.body[0] == body[0]

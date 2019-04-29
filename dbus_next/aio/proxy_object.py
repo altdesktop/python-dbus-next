@@ -6,7 +6,7 @@ from ..constants import ErrorType
 
 
 class ProxyInterface(BaseProxyInterface):
-    def add_method(self, intr_method):
+    def _add_method(self, intr_method):
         async def method_fn(*args):
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
@@ -16,7 +16,7 @@ class ProxyInterface(BaseProxyInterface):
                         signature=intr_method.in_signature,
                         body=list(args)))
 
-            BaseProxyInterface.check_method_return(msg, intr_method.out_signature)
+            BaseProxyInterface._check_method_return(msg, intr_method.out_signature)
 
             out_len = len(intr_method.out_args)
             if not out_len:
@@ -26,10 +26,10 @@ class ProxyInterface(BaseProxyInterface):
             else:
                 return msg.body
 
-        method_name = f'call_{BaseProxyInterface.to_snake_case(intr_method.name)}'
+        method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
         setattr(self, method_name, method_fn)
 
-    def add_property(self, intr_property):
+    def _add_property(self, intr_property):
         async def property_getter():
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
@@ -39,7 +39,7 @@ class ProxyInterface(BaseProxyInterface):
                         signature='ss',
                         body=[self.introspection.name, intr_property.name]))
 
-            BaseProxyInterface.check_method_return(msg, 'v')
+            BaseProxyInterface._check_method_return(msg, 'v')
             variant = msg.body[0]
             if variant.signature != intr_property.signature:
                 raise DBusError(ErrorType.CLIENT_ERROR,
@@ -56,9 +56,9 @@ class ProxyInterface(BaseProxyInterface):
                         signature='ssv',
                         body=[self.introspection.name, intr_property.name, variant]))
 
-            BaseProxyInterface.check_method_return(msg)
+            BaseProxyInterface._check_method_return(msg)
 
-        snake_case = BaseProxyInterface.to_snake_case(intr_property.name)
+        snake_case = BaseProxyInterface._to_snake_case(intr_property.name)
         setattr(self, f'get_{snake_case}', property_getter)
         setattr(self, f'set_{snake_case}', property_setter)
 

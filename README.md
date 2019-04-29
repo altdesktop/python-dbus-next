@@ -67,7 +67,7 @@ loop.run_until_complete(main())
 *The service interface is unstable*
 
 ```python
-from dbus_next.service_interface import ServiceInterface, method, dbus_property, signal
+from dbus_next.service import ServiceInterface, method, dbus_property, signal
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.variant import Variant
 
@@ -198,7 +198,6 @@ Contributions are welcome. Development happens on [Github](https://github.com/ac
 ### TODO
 
 * properties cache
-* carve out public api
 * documentation
 
 # Copyright

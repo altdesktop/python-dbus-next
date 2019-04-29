@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface, signal, SignalDisabledError
+from dbus_next.service import ServiceInterface, signal, SignalDisabledError
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.message import Message
 from dbus_next.constants import MessageType
@@ -49,14 +49,14 @@ async def test_signals():
                 interface='org.freedesktop.DBus',
                 member='AddMatch',
                 signature='s',
-                body=[f'sender={bus1.name}']))
+                body=[f'sender={bus1.unique_name}']))
 
     async def wait_for_message():
         # TODO timeout
         future = asyncio.get_event_loop().create_future()
 
         def message_handler(signal):
-            if signal.sender == bus1.name and signal.interface == interface.name:
+            if signal.sender == bus1.unique_name and signal.interface == interface.name:
                 bus1.remove_message_handler(message_handler)
                 future.set_result(signal)
 
@@ -67,7 +67,7 @@ async def test_signals():
         assert signal.message_type == MessageType.SIGNAL, signal.body[0]
         assert signal.interface == interface.name
         assert signal.path == export_path
-        assert signal.sender == bus1.name
+        assert signal.sender == bus1.unique_name
         assert signal.member == member
         assert signal.signature == signature
         assert signal.body == body

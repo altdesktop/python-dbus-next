@@ -64,6 +64,7 @@ class Message:
         else:
             raise InvalidMessageError(f'got unknown message type: {self.message_type}')
 
+    @staticmethod
     def new_error(msg, error_name, error_text):
         return Message(message_type=MessageType.ERROR,
                        reply_serial=msg.serial,
@@ -72,6 +73,7 @@ class Message:
                        signature='s',
                        body=[error_text])
 
+    @staticmethod
     def new_method_return(msg, signature='', body=[]):
         return Message(message_type=MessageType.METHOD_RETURN,
                        reply_serial=msg.serial,
@@ -79,6 +81,7 @@ class Message:
                        signature=signature,
                        body=body)
 
+    @staticmethod
     def new_signal(path, interface, member, signature='', body=None):
         body = body if body else []
         return Message(message_type=MessageType.SIGNAL,
@@ -88,14 +91,14 @@ class Message:
                        signature=signature,
                        body=body)
 
-    def matches(self, **kwargs):
+    def _matches(self, **kwargs):
         for attr, val in kwargs.items():
             if getattr(self, attr) != val:
                 return False
 
         return True
 
-    def marshall(self):
+    def _marshall(self):
         # TODO maximum message size is 134217728 (128 MiB)
         body_block = Marshaller(self.signature, self.body)
         body_block.marshall()

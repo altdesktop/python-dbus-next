@@ -22,24 +22,24 @@ class BaseProxyInterface:
     _underscorer2 = re.compile(r'([a-z0-9])([A-Z])')
 
     @staticmethod
-    def to_snake_case(member):
+    def _to_snake_case(member):
         subbed = BaseProxyInterface._underscorer1.sub(r'\1_\2', member)
         return BaseProxyInterface._underscorer2.sub(r'\1_\2', subbed).lower()
 
     @staticmethod
-    def check_method_return(msg, signature=None):
+    def _check_method_return(msg, signature=None):
         if msg.message_type == MessageType.ERROR:
-            raise DBusError.from_message(msg)
+            raise DBusError._from_message(msg)
         elif msg.message_type != MessageType.METHOD_RETURN:
             raise DBusError(ErrorType.CLIENT_ERROR, 'method call didnt return a method return', msg)
         elif signature is not None and msg.signature != signature:
             raise DBusError(ErrorType.CLIENT_ERROR,
                             f'method call returned unexpected signature: "{msg.signature}"', msg)
 
-    def add_method(self, intr_method):
+    def _add_method(self, intr_method):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
-    def add_property(self, intr_property):
+    def _add_property(self, intr_property):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
 
@@ -71,29 +71,6 @@ class BaseProxyObject:
         self.child_names = [f'{path}/{n.name}' for n in self.node.nodes]
         self.signal_handlers = {}
 
-    def add_signal(self, intr_signal, interface):
-        def on_signal_fn(fn):
-            fn_signature = inspect.signature(fn)
-            if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
-                raise TypeError(
-                    f'reply_notify must be a function with {len(intr_signal.args)} parameters')
-
-            if intr_signal.name not in self.signal_handlers:
-                self.signal_handlers[intr_signal.name] = []
-
-            self.signal_handlers[intr_signal.name].append(fn)
-
-        def off_signal_fn(fn):
-            try:
-                i = self.signal_handlers[intr_signal.name].index(fn)
-                del self.signal_handlers[intr_signal.name][i]
-            except (KeyError, ValueError):
-                pass
-
-        snake_case = BaseProxyInterface.to_snake_case(intr_signal.name)
-        setattr(interface, f'on_{snake_case}', on_signal_fn)
-        setattr(interface, f'off_{snake_case}', off_signal_fn)
-
     def get_interface(self, name):
         try:
             intr_interface = next(i for i in self.node.interfaces if i.name == name)
@@ -103,11 +80,11 @@ class BaseProxyObject:
         interface = self.ProxyInterface(self.bus_name, self.path, intr_interface, self.bus)
 
         for intr_method in intr_interface.methods:
-            interface.add_method(intr_method)
+            interface._add_method(intr_method)
         for intr_property in intr_interface.properties:
-            interface.add_property(intr_property)
+            interface._add_property(intr_property)
         for intr_signal in intr_interface.signals:
-            self.add_signal(intr_signal, interface)
+            self._add_signal(intr_signal, interface)
 
         def add_match_notify(msg, err):
             if err:
@@ -121,7 +98,7 @@ class BaseProxyObject:
             if msg.message_type == MessageType.ERROR:
                 logging.error(f'getting name owner for "{name}" failed, {msg.body[0]}')
 
-            self.bus.name_owners[self.bus_name] = msg.body[0]
+            self.bus._name_owners[self.bus_name] = msg.body[0]
 
         if self.bus_name[0] != ':':
             self.bus._call(
@@ -142,11 +119,11 @@ class BaseProxyObject:
                     body=[match_rule]), add_match_notify)
 
         def message_handler(msg):
-            if msg.matches(message_type=MessageType.SIGNAL,
-                           interface=intr_interface.name,
-                           path=self.path) and msg.member in self.signal_handlers:
-                if msg.sender != self.bus_name and self.bus.name_owners.get(self.bus_name,
-                                                                            '') != msg.sender:
+            if msg._matches(message_type=MessageType.SIGNAL,
+                            interface=intr_interface.name,
+                            path=self.path) and msg.member in self.signal_handlers:
+                if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
+                                                                             '') != msg.sender:
                     return
                 match = [s for s in intr_interface.signals if s.name == msg.member]
                 if not len(match):
@@ -169,3 +146,26 @@ class BaseProxyObject:
         return [
             self.__class__(self.bus_name, self.path, child, self.bus) for child in self.node.nodes
         ]
+
+    def _add_signal(self, intr_signal, interface):
+        def on_signal_fn(fn):
+            fn_signature = inspect.signature(fn)
+            if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
+                raise TypeError(
+                    f'reply_notify must be a function with {len(intr_signal.args)} parameters')
+
+            if intr_signal.name not in self.signal_handlers:
+                self.signal_handlers[intr_signal.name] = []
+
+            self.signal_handlers[intr_signal.name].append(fn)
+
+        def off_signal_fn(fn):
+            try:
+                i = self.signal_handlers[intr_signal.name].index(fn)
+                del self.signal_handlers[intr_signal.name][i]
+            except (KeyError, ValueError):
+                pass
+
+        snake_case = BaseProxyInterface._to_snake_case(intr_signal.name)
+        setattr(interface, f'on_{snake_case}', on_signal_fn)
+        setattr(interface, f'off_{snake_case}', off_signal_fn)

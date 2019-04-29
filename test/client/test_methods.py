@@ -1,7 +1,7 @@
 from dbus_next.aio.message_bus import MessageBus as AIOMessageBus
 from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
 from dbus_next.aio.proxy_object import ProxyObject as AIOProxyObject
-from dbus_next.service_interface import ServiceInterface, method
+from dbus_next.service import ServiceInterface, method
 import dbus_next.introspection as intr
 from dbus_next.errors import DBusError
 

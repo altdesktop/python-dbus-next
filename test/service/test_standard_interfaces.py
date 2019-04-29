@@ -1,4 +1,4 @@
-from dbus_next.service_interface import ServiceInterface
+from dbus_next.service import ServiceInterface
 from dbus_next.aio.message_bus import MessageBus
 from dbus_next.message import Message
 from dbus_next.constants import MessageType
@@ -22,26 +22,26 @@ async def test_export_unexport():
     export_path2 = '/test/path/child'
     bus = await MessageBus().connect()
     bus.export(export_path, interface)
-    assert export_path in bus.path_exports
-    assert len(bus.path_exports[export_path]) == 1
-    assert bus.path_exports[export_path][0] is interface
+    assert export_path in bus._path_exports
+    assert len(bus._path_exports[export_path]) == 1
+    assert bus._path_exports[export_path][0] is interface
     bus.export(export_path2, interface2)
 
-    node = bus.introspect_export_path(export_path)
+    node = bus._introspect_export_path(export_path)
     assert len(node.interfaces) == standard_interfaces_count + 1
     assert len(node.nodes) == 1
     # relative path
     assert node.nodes[0].name == 'child'
 
     bus.unexport(export_path, interface)
-    assert export_path not in bus.path_exports
+    assert export_path not in bus._path_exports
 
     bus.export(export_path2, interface)
-    assert len(bus.path_exports[export_path2]) == 2
+    assert len(bus._path_exports[export_path2]) == 2
     bus.unexport(export_path2)
-    assert not bus.path_exports
+    assert not bus._path_exports
 
-    node = bus.introspect_export_path('/path/doesnt/exist')
+    node = bus._introspect_export_path('/path/doesnt/exist')
     assert type(node) is intr.Node
     assert not node.interfaces
     assert not node.nodes
@@ -60,7 +60,7 @@ async def test_introspectable_interface():
     bus1.export(export_path, interface2)
 
     reply = await bus2.call(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path=export_path,
                 interface='org.freedesktop.DBus.Introspectable',
                 member='Introspect'))
@@ -75,7 +75,7 @@ async def test_introspectable_interface():
 
     # introspect works on every path
     reply = await bus2.call(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path='/path/doesnt/exist',
                 interface='org.freedesktop.DBus.Introspectable',
                 member='Introspect'))
@@ -92,7 +92,7 @@ async def test_peer_interface():
     bus2 = await MessageBus().connect()
 
     reply = await bus2.call(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path='/path/doesnt/exist',
                 interface='org.freedesktop.DBus.Peer',
                 member='Ping'))
@@ -101,7 +101,7 @@ async def test_peer_interface():
     assert reply.signature == ''
 
     reply = await bus2.call(
-        Message(destination=bus1.name,
+        Message(destination=bus1.unique_name,
                 path='/path/doesnt/exist',
                 interface='org.freedesktop.DBus.Peer',
                 member='GetMachineId',
