@@ -45,6 +45,7 @@ class MessageWritableSource(GLib.Source):
         self.bus = bus
         self.buf = b''
         self.message_stream = None
+        self.chunk_size = 128
 
     def prepare(self):
         return (False, -1)
@@ -60,11 +61,11 @@ class MessageWritableSource(GLib.Source):
 
             if self.message_stream:
                 while True:
-                    self.buf = self.message_stream.read(64)
+                    self.buf = self.message_stream.read(self.chunk_size)
                     if self.buf == b'':
                         break
                     self.bus.stream.write(self.buf)
-                    if len(self.buf) < 64:
+                    if len(self.buf) < self.chunk_size:
                         self.buf = b''
                         break
                     self.buf = b''
@@ -77,6 +78,8 @@ class MessageWritableSource(GLib.Source):
                 message = self.bus.buffered_messages.pop(0)
                 self.message_stream = io.BytesIO(message.marshall())
                 return GLib.SOURCE_CONTINUE
+        except BlockingIOError:
+            return GLib.SOURCE_CONTINUE
         except Exception as e:
             self.bus.finalize(e)
             return GLib.SOURCE_REMOVE
