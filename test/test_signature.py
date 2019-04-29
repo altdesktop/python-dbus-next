@@ -3,7 +3,7 @@ from dbus_next.signature import SignatureTree
 
 def assert_simple_type(signature, type_):
     assert type_.token == signature
-    assert type_.collapse() == signature
+    assert type_.signature == signature
     assert len(type_.children) == 0
 
 
@@ -24,7 +24,7 @@ def test_array():
     tree = SignatureTree('as')
     assert len(tree.types) == 1
     child = tree.types[0]
-    assert child.collapse() == 'as'
+    assert child.signature == 'as'
     assert child.token == 'a'
     assert len(child.children) == 1
     assert_simple_type('s', child.children[0])
@@ -37,7 +37,7 @@ def test_array_multiple():
     for i in range(0, 3):
         array_child = tree.types[i]
         assert array_child.token == 'a'
-        assert array_child.collapse() == 'as'
+        assert array_child.signature == 'as'
         assert len(array_child.children) == 1
         assert_simple_type('s', array_child.children[0])
 
@@ -47,11 +47,11 @@ def test_array_nested():
     assert len(tree.types) == 1
     child = tree.types[0]
     assert child.token == 'a'
-    assert child.collapse() == 'aas'
+    assert child.signature == 'aas'
     assert len(child.children) == 1
     nested_child = child.children[0]
     assert nested_child.token == 'a'
-    assert nested_child.collapse() == 'as'
+    assert nested_child.signature == 'as'
     assert len(nested_child.children) == 1
     assert_simple_type('s', nested_child.children[0])
 
@@ -60,7 +60,7 @@ def test_simple_struct():
     tree = SignatureTree('(sss)')
     assert len(tree.types) == 1
     child = tree.types[0]
-    assert child.collapse() == '(sss)'
+    assert child.signature == '(sss)'
     assert len(child.children) == 3
     for i in range(0, 3):
         assert_simple_type('s', child.children[i])
@@ -70,18 +70,18 @@ def test_nested_struct():
     tree = SignatureTree('(s(s(s)))')
     assert len(tree.types) == 1
     child = tree.types[0]
-    assert child.collapse() == '(s(s(s)))'
+    assert child.signature == '(s(s(s)))'
     assert child.token == '('
     assert len(child.children) == 2
     assert_simple_type('s', child.children[0])
     first_nested = child.children[1]
     assert first_nested.token == '('
-    assert first_nested.collapse() == '(s(s))'
+    assert first_nested.signature == '(s(s))'
     assert len(first_nested.children) == 2
     assert_simple_type('s', first_nested.children[0])
     second_nested = first_nested.children[1]
     assert second_nested.token == '('
-    assert second_nested.collapse() == '(s)'
+    assert second_nested.signature == '(s)'
     assert len(second_nested.children) == 1
     assert_simple_type('s', second_nested.children[0])
 
@@ -92,7 +92,7 @@ def test_struct_multiple():
     for i in range(0, 3):
         child = tree.types[0]
         assert child.token == '('
-        assert child.collapse() == '(s)'
+        assert child.signature == '(s)'
         assert len(child.children) == 1
         assert_simple_type('s', child.children[0])
 
@@ -102,11 +102,11 @@ def test_array_of_structs():
     assert len(tree.types) == 1
     child = tree.types[0]
     assert child.token == 'a'
-    assert child.collapse() == 'a(ss)'
+    assert child.signature == 'a(ss)'
     assert len(child.children) == 1
     struct_child = child.children[0]
     assert struct_child.token == '('
-    assert struct_child.collapse() == '(ss)'
+    assert struct_child.signature == '(ss)'
     assert len(struct_child.children) == 2
     for i in range(0, 2):
         assert_simple_type('s', struct_child.children[i])
@@ -116,12 +116,12 @@ def test_dict_simple():
     tree = SignatureTree('a{ss}')
     assert len(tree.types) == 1
     child = tree.types[0]
-    assert child.collapse() == 'a{ss}'
+    assert child.signature == 'a{ss}'
     assert child.token == 'a'
     assert len(child.children) == 1
     dict_child = child.children[0]
     assert dict_child.token == '{'
-    assert dict_child.collapse() == '{ss}'
+    assert dict_child.signature == '{ss}'
     assert len(dict_child.children) == 2
     assert_simple_type('s', dict_child.children[0])
     assert_simple_type('s', dict_child.children[1])
@@ -132,16 +132,16 @@ def test_dict_of_structs():
     assert len(tree.types) == 1
     child = tree.types[0]
     assert child.token == 'a'
-    assert child.collapse() == 'a{s(ss)}'
+    assert child.signature == 'a{s(ss)}'
     assert len(child.children) == 1
     dict_child = child.children[0]
     assert dict_child.token == '{'
-    assert dict_child.collapse() == '{s(ss)}'
+    assert dict_child.signature == '{s(ss)}'
     assert len(dict_child.children) == 2
     assert_simple_type('s', dict_child.children[0])
     struct_child = dict_child.children[1]
     assert struct_child.token == '('
-    assert struct_child.collapse() == '(ss)'
+    assert struct_child.signature == '(ss)'
     assert len(struct_child.children) == 2
     for i in range(0, 2):
         assert_simple_type('s', struct_child.children[i])

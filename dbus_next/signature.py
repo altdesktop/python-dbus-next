@@ -12,18 +12,18 @@ class SignatureType:
 
     def __eq__(self, other):
         if type(other) is SignatureType:
-            return self.collapse() == other.collapse()
+            return self.signature == other.signature
         else:
             return super().__eq__(other)
 
-    def collapse(self):
+    def _collapse(self):
         if self.token not in 'a({':
             return self.token
 
         signature = [self.token]
 
         for child in self.children:
-            signature.append(child.collapse())
+            signature.append(child._collapse())
 
         if self.token == '(':
             signature.append(')')
@@ -34,8 +34,9 @@ class SignatureType:
 
     @property
     def signature(self):
-        return self.collapse()
+        return self._collapse()
 
+    @staticmethod
     def parse_next(signature):
         if not signature:
             return (None, '')

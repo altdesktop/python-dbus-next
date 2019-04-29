@@ -11,7 +11,7 @@ class Variant:
             signature_tree = signature
         elif type(signature) is s.SignatureType:
             signature_type = signature
-            signature_str = signature.collapse()
+            signature_str = signature.signature
         elif type(signature) is str:
             signature_tree = s.SignatureTree(signature)
         else:

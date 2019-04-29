@@ -17,7 +17,7 @@ class Arg:
         type_ = None
         if type(signature) is SignatureType:
             type_ = signature
-            signature = signature.collapse()
+            signature = signature.signature
         else:
             tree = SignatureTree(signature)
             if len(tree.types) != 1:
