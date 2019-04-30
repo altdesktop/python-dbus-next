@@ -10,4 +10,4 @@ ignore=
 per-file-ignores=
     test/*:F821
     examples/*:F821
-    dbus_next/__init__.py:F401
+    */__init__.py:F401

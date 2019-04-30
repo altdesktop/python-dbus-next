@@ -13,6 +13,7 @@ def test_object_path_validator():
     for path in invalid_paths:
         assert not is_object_path_valid(path), f'path should be invalid: "{path}"'
 
+
 def test_bus_name_validator():
     valid_names = [
         'foo.bar', 'foo.bar.bat', '_foo._bar', 'foo.bar69', 'foo.bar-69',
@@ -27,6 +28,7 @@ def test_bus_name_validator():
     for name in invalid_names:
         assert not is_bus_name_valid(name), f'bus name should be invalid: "{name}"'
 
+
 def test_interface_name_validator():
     valid_names = ['foo.bar', 'foo.bar.bat', '_foo._bar', 'foo.bar69']
     invalid_names = [
@@ -38,6 +40,7 @@ def test_interface_name_validator():
         assert is_interface_name_valid(name), f'interface name should be valid: "{name}"'
     for name in invalid_names:
         assert not is_interface_name_valid(name), f'interface name should be invalid: "{name}"'
+
 
 def test_member_name_validator():
     valid_members = ['foo', 'FooBar', 'Bat_Baz69']
