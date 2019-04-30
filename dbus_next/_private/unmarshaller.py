@@ -1,5 +1,6 @@
 from ..message import Message
-from ..constants import MessageType, MessageFlag, HeaderField, LITTLE_ENDIAN, BIG_ENDIAN
+from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION
+from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree
 from ..variant import Variant
 from ..errors import InvalidMessageError
@@ -203,7 +204,7 @@ class Unmarshaller:
 
         protocol_version = self.read_byte()
 
-        if protocol_version != 1:
+        if protocol_version != PROTOCOL_VERSION:
             raise InvalidMessageError(f'got unknown protocol version: {protocol_version}')
 
         body_len = self.read_uint32()

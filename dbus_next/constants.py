@@ -1,10 +1,5 @@
 from enum import Enum, IntFlag
 
-PROTOCOL_VERSION = 1
-
-LITTLE_ENDIAN = ord('l')
-BIG_ENDIAN = ord('B')
-
 
 class BusType(Enum):
     SESSION = 1
@@ -43,18 +38,6 @@ class ReleaseNameReply(Enum):
     RELEASED = 1
     NON_EXISTENT = 2
     NOT_OWNER = 3
-
-
-class HeaderField(Enum):
-    PATH = 1
-    INTERFACE = 2
-    MEMBER = 3
-    ERROR_NAME = 4
-    REPLY_SERIAL = 5
-    DESTINATION = 6
-    SENDER = 7
-    SIGNATURE = 8
-    UNIX_FDS = 9
 
 
 class PropertyAccess(Enum):
