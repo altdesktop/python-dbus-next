@@ -9,5 +9,6 @@ ignore=
 # examples
 per-file-ignores=
     test/*:F821
+    test/util.py:F401
     examples/*:F821
     */__init__.py:F401

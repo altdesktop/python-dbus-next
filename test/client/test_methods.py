@@ -1,8 +1,11 @@
 from dbus_next.service import ServiceInterface, method
 import dbus_next.introspection as intr
 from dbus_next import aio, glib, DBusError
+from test.util import check_gi_repository, skip_reason_no_gi
 
 import pytest
+
+has_gi = check_gi_repository()
 
 
 class ExampleInterface(ServiceInterface):
@@ -78,6 +81,7 @@ async def test_aio_proxy_object():
     bus2.disconnect()
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_glib_proxy_object():
     bus_name = 'glib.client.test.methods'
     bus = glib.session_bus_sync()

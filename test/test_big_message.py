@@ -1,7 +1,10 @@
 from dbus_next import aio, glib, Message, MessageType
 from dbus_next.service import ServiceInterface, method
+from test.util import check_gi_repository, skip_reason_no_gi
 
 import pytest
+
+has_gi = check_gi_repository()
 
 
 class ExampleInterface(ServiceInterface):
@@ -34,6 +37,7 @@ async def test_aio_big_message():
     assert result.body[0] == big_body[0]
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_glib_big_message():
     'this tests that nonblocking reads and writes actually work for glib'
     bus1 = glib.session_bus_sync()

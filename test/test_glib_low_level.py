@@ -1,9 +1,16 @@
 from dbus_next.glib import session_bus_sync
 from dbus_next import Message, MessageType, MessageFlag
+from test.util import check_gi_repository, skip_reason_no_gi
 
-from gi.repository import GLib
+import pytest
+
+has_gi = check_gi_repository()
+
+if has_gi:
+    from gi.repository import GLib
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_standard_interfaces():
     bus = session_bus_sync()
     msg = Message(destination='org.freedesktop.DBus',
@@ -39,6 +46,7 @@ def test_standard_interfaces():
     assert type(reply.body[0]) is str
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_sending_messages_between_buses():
     bus1 = session_bus_sync()
     bus2 = session_bus_sync()
@@ -98,6 +106,7 @@ def test_sending_messages_between_buses():
     assert reply is None
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_sending_signals_between_buses():
     bus1 = session_bus_sync()
     bus2 = session_bus_sync()

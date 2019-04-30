@@ -4,7 +4,11 @@ from ..errors import DBusError
 from ..variant import Variant
 from ..constants import ErrorType
 
-from gi.repository import GLib
+# glib is optional
+try:
+    from gi.repository import GLib
+except ImportError as e:
+    pass
 
 
 class ProxyInterface(BaseProxyInterface):

@@ -9,10 +9,19 @@ from .proxy_object import ProxyObject
 
 import logging
 import io
-from gi.repository import GLib
+
+# glib is optional
+_import_error = None
+try:
+    from gi.repository import GLib
+    _GLibSource = GLib.Source
+except ImportError as e:
+    _import_error = e
+    class _GLibSource:
+        pass
 
 
-class _MessageSource(GLib.Source):
+class _MessageSource(_GLibSource):
     def __init__(self, bus):
         self.unmarshaller = None
         self.bus = bus
@@ -42,7 +51,7 @@ class _MessageSource(GLib.Source):
         return GLib.SOURCE_CONTINUE
 
 
-class _MessageWritableSource(GLib.Source):
+class _MessageWritableSource(_GLibSource):
     def __init__(self, bus):
         self.bus = bus
         self.buf = b''
@@ -87,7 +96,7 @@ class _MessageWritableSource(GLib.Source):
             return GLib.SOURCE_REMOVE
 
 
-class _AuthLineSource(GLib.Source):
+class _AuthLineSource(_GLibSource):
     def __init__(self, stream):
         self.stream = stream
         self.buf = b''
@@ -109,6 +118,9 @@ class _AuthLineSource(GLib.Source):
 
 class MessageBus(BaseMessageBus):
     def __init__(self, bus_address=None, bus_type=BusType.SESSION, main_context=None):
+        if _import_error:
+            raise _import_error
+
         super().__init__(bus_address, bus_type)
         self.main_context = main_context if main_context else GLib.main_context_default()
 

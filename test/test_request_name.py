@@ -1,6 +1,9 @@
 from dbus_next import aio, glib, Message, MessageType, NameFlag, RequestNameReply, ReleaseNameReply
+from test.util import check_gi_repository, skip_reason_no_gi
 
 import pytest
+
+has_gi = check_gi_repository()
 
 
 @pytest.mark.asyncio
@@ -52,6 +55,7 @@ async def test_name_requests():
     bus2.disconnect()
 
 
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_request_name_glib():
     test_name = 'glib.test.request.name'
     bus = glib.session_bus_sync()
