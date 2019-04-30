@@ -7,7 +7,7 @@ from ..constants import ErrorType
 # glib is optional
 try:
     from gi.repository import GLib
-except ImportError as e:
+except ImportError:
     pass
 
 

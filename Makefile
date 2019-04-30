@@ -1,4 +1,4 @@
-.PHONY: test format lint all
+.PHONY: test format lint all clean
 .DEFAULT_GOAL := all
 
 source_dirs = dbus_next test examples
@@ -18,5 +18,13 @@ docker-test:
 
 coverage:
 	dbus-run-session pytest --cov=dbus_next
+
+clean:
+	rm -rf dist dbus_next.egg-info build
+	rm -rf `find -type d -name __pycache__`
+
+publish:
+	python3 setup.py sdist bdist_wheel
+	twine upload dist/*
 
 all: format lint test

@@ -17,6 +17,7 @@ try:
     _GLibSource = GLib.Source
 except ImportError as e:
     _import_error = e
+
     class _GLibSource:
         pass
 
