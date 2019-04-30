@@ -1,4 +1,4 @@
-.PHONY: test format lint all clean
+.PHONY: test format lint all clean publish
 .DEFAULT_GOAL := all
 
 source_dirs = dbus_next test examples
@@ -25,6 +25,6 @@ clean:
 
 publish:
 	python3 setup.py sdist bdist_wheel
-	twine upload dist/*
+	python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
 
 all: format lint test
