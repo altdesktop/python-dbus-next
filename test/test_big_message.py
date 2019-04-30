@@ -1,7 +1,4 @@
-from dbus_next.aio.message_bus import MessageBus
-from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
-from dbus_next.message import Message
-from dbus_next.constants import MessageType
+from dbus_next import aio, glib, Message, MessageType
 from dbus_next.service import ServiceInterface, method
 
 import pytest
@@ -19,8 +16,8 @@ class ExampleInterface(ServiceInterface):
 @pytest.mark.asyncio
 async def test_aio_big_message():
     'this tests that nonblocking reads and writes actually work for aio'
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await aio.MessageBus().connect()
+    bus2 = await aio.MessageBus().connect()
     interface = ExampleInterface()
     bus1.export('/test/path', interface)
 
@@ -39,8 +36,8 @@ async def test_aio_big_message():
 
 def test_glib_big_message():
     'this tests that nonblocking reads and writes actually work for glib'
-    bus1 = GLibMessageBus().connect_sync()
-    bus2 = GLibMessageBus().connect_sync()
+    bus1 = glib.MessageBus().connect_sync()
+    bus2 = glib.MessageBus().connect_sync()
     interface = ExampleInterface()
     bus1.export('/test/path', interface)
 

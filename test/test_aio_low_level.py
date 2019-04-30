@@ -1,6 +1,5 @@
-from dbus_next.aio.message_bus import MessageBus
-from dbus_next.message import Message
-from dbus_next.constants import MessageType, MessageFlag
+from dbus_next.aio import MessageBus
+from dbus_next import Message, MessageType, MessageFlag
 
 import pytest
 

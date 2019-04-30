@@ -1,6 +1,4 @@
-from dbus_next.constants import ArgDirection, PropertyAccess
-from dbus_next.signature import SignatureType
-import dbus_next.introspection as intr
+from dbus_next import introspection as intr, ArgDirection, PropertyAccess, SignatureType
 
 import os
 

@@ -1,10 +1,6 @@
 from dbus_next.service import ServiceInterface, method
-from dbus_next.aio.message_bus import MessageBus
-from dbus_next.message import Message
-from dbus_next.constants import MessageType, ErrorType
-from dbus_next.variant import Variant
-from dbus_next.signature import SignatureTree
-from dbus_next.errors import DBusError
+from dbus_next.aio import MessageBus
+from dbus_next import Message, MessageType, ErrorType, Variant, SignatureTree, DBusError
 
 import pytest
 

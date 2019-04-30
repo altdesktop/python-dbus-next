@@ -1,7 +1,4 @@
-from dbus_next.aio.message_bus import MessageBus
-from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
-from dbus_next.constants import MessageType, NameFlag, RequestNameReply, ReleaseNameReply
-from dbus_next.message import Message
+from dbus_next import aio, glib, Message, MessageType, NameFlag, RequestNameReply, ReleaseNameReply
 
 import pytest
 
@@ -10,8 +7,8 @@ import pytest
 async def test_name_requests():
     test_name = 'aio.test.request.name'
 
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await aio.MessageBus().connect()
+    bus2 = await aio.MessageBus().connect()
 
     async def get_name_owner(name):
         reply = await bus1.call(
@@ -57,7 +54,7 @@ async def test_name_requests():
 
 def test_request_name_glib():
     test_name = 'glib.test.request.name'
-    bus = GLibMessageBus().connect_sync()
+    bus = glib.MessageBus().connect_sync()
 
     reply = bus.request_name_sync(test_name)
     assert reply == RequestNameReply.PRIMARY_OWNER

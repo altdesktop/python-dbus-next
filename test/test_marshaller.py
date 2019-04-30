@@ -1,8 +1,7 @@
-import json
-from dbus_next.message import Message
 from dbus_next._private.unmarshaller import Unmarshaller
-from dbus_next.variant import Variant
-from dbus_next.signature import SignatureTree
+from dbus_next import Message, Variant, SignatureTree
+
+import json
 import os
 import io
 

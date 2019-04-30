@@ -1,9 +1,6 @@
-from dbus_next.aio.message_bus import MessageBus as AIOMessageBus
-from dbus_next.glib.message_bus import MessageBus as GLibMessageBus
-from dbus_next.aio.proxy_object import ProxyObject as AIOProxyObject
 from dbus_next.service import ServiceInterface, method
 import dbus_next.introspection as intr
-from dbus_next.errors import DBusError
+from dbus_next import aio, glib, DBusError
 
 import pytest
 
@@ -37,8 +34,8 @@ class ExampleInterface(ServiceInterface):
 async def test_aio_proxy_object():
     bus_name = 'aio.client.test.methods'
 
-    bus = await AIOMessageBus().connect()
-    bus2 = await AIOMessageBus().connect()
+    bus = await aio.MessageBus().connect()
+    bus2 = await aio.MessageBus().connect()
     await bus.request_name(bus_name)
     service_interface = ExampleInterface()
     bus.export('/test/path', service_interface)
@@ -54,7 +51,7 @@ async def test_aio_proxy_object():
     children = obj.get_children()
     assert len(children) == 2
     for child in obj.get_children():
-        assert type(child) is AIOProxyObject
+        assert type(child) is aio.ProxyObject
 
     result = await interface.call_ping()
     assert result is None
@@ -83,12 +80,12 @@ async def test_aio_proxy_object():
 
 def test_glib_proxy_object():
     bus_name = 'glib.client.test.methods'
-    bus = GLibMessageBus().connect_sync()
+    bus = glib.MessageBus().connect_sync()
     bus.request_name_sync(bus_name)
     service_interface = ExampleInterface()
     bus.export('/test/path', service_interface)
 
-    bus2 = GLibMessageBus().connect_sync()
+    bus2 = glib.MessageBus().connect_sync()
     introspection = bus2.introspect_sync(bus_name, '/test/path')
     assert type(introspection) is intr.Node
     obj = bus.get_proxy_object(bus_name, '/test/path', introspection)

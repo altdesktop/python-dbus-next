@@ -1,4 +1,4 @@
-from dbus_next.signature import SignatureTree
+from dbus_next import SignatureTree
 
 
 def assert_simple_type(signature, type_):
