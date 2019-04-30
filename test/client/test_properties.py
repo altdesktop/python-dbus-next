@@ -30,11 +30,11 @@ class ExampleInterface(ServiceInterface):
 
 @pytest.mark.asyncio
 async def test_aio_properties():
-    service_bus = await aio.MessageBus().connect()
+    service_bus = await aio.session_bus()
     service_interface = ExampleInterface()
     service_bus.export('/test/path', service_interface)
 
-    bus = await aio.MessageBus().connect()
+    bus = await aio.session_bus()
     obj = bus.get_proxy_object(service_bus.unique_name, '/test/path',
                                service_bus._introspect_export_path('/test/path'))
     interface = obj.get_interface(service_interface.name)
@@ -69,11 +69,11 @@ async def test_aio_properties():
 
 
 def test_glib_properties():
-    service_bus = glib.MessageBus().connect_sync()
+    service_bus = glib.session_bus_sync()
     service_interface = ExampleInterface()
     service_bus.export('/test/path', service_interface)
 
-    bus = glib.MessageBus().connect_sync()
+    bus = glib.session_bus_sync()
     obj = bus.get_proxy_object(service_bus.unique_name, '/test/path',
                                service_bus._introspect_export_path('/test/path'))
     interface = obj.get_interface(service_interface.name)

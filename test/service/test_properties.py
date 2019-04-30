@@ -1,5 +1,5 @@
 from dbus_next.service import ServiceInterface, dbus_property, method
-from dbus_next.aio import MessageBus
+from dbus_next.aio import session_bus
 from dbus_next import Message, MessageType, PropertyAccess, ErrorType, Variant, DBusError
 
 import pytest
@@ -68,8 +68,8 @@ class ExampleInterface(ServiceInterface):
 
 @pytest.mark.asyncio
 async def test_property_methods():
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await session_bus()
+    bus2 = await session_bus()
 
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
@@ -153,8 +153,8 @@ async def test_property_methods():
 
 @pytest.mark.asyncio
 async def test_property_changed_signal():
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await session_bus()
+    bus2 = await session_bus()
 
     await bus2.call(
         Message(destination='org.freedesktop.DBus',

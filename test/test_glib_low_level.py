@@ -1,11 +1,11 @@
-from dbus_next.glib import MessageBus
+from dbus_next.glib import session_bus_sync
 from dbus_next import Message, MessageType, MessageFlag
 
 from gi.repository import GLib
 
 
 def test_standard_interfaces():
-    bus = MessageBus().connect_sync()
+    bus = session_bus_sync()
     msg = Message(destination='org.freedesktop.DBus',
                   path='/org/freedesktop/DBus',
                   interface='org.freedesktop.DBus',
@@ -40,8 +40,8 @@ def test_standard_interfaces():
 
 
 def test_sending_messages_between_buses():
-    bus1 = MessageBus().connect_sync()
-    bus2 = MessageBus().connect_sync()
+    bus1 = session_bus_sync()
+    bus2 = session_bus_sync()
 
     msg = Message(destination=bus1.unique_name,
                   path='/org/test/path',
@@ -99,8 +99,8 @@ def test_sending_messages_between_buses():
 
 
 def test_sending_signals_between_buses():
-    bus1 = MessageBus().connect_sync()
-    bus2 = MessageBus().connect_sync()
+    bus1 = session_bus_sync()
+    bus2 = session_bus_sync()
 
     add_match_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',

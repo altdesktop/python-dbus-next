@@ -16,8 +16,8 @@ class ExampleInterface(ServiceInterface):
 @pytest.mark.asyncio
 async def test_aio_big_message():
     'this tests that nonblocking reads and writes actually work for aio'
-    bus1 = await aio.MessageBus().connect()
-    bus2 = await aio.MessageBus().connect()
+    bus1 = await aio.session_bus()
+    bus2 = await aio.session_bus()
     interface = ExampleInterface()
     bus1.export('/test/path', interface)
 
@@ -36,8 +36,8 @@ async def test_aio_big_message():
 
 def test_glib_big_message():
     'this tests that nonblocking reads and writes actually work for glib'
-    bus1 = glib.MessageBus().connect_sync()
-    bus2 = glib.MessageBus().connect_sync()
+    bus1 = glib.session_bus_sync()
+    bus2 = glib.session_bus_sync()
     interface = ExampleInterface()
     bus1.export('/test/path', interface)
 

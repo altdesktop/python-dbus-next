@@ -34,8 +34,8 @@ class ExampleInterface(ServiceInterface):
 async def test_aio_proxy_object():
     bus_name = 'aio.client.test.methods'
 
-    bus = await aio.MessageBus().connect()
-    bus2 = await aio.MessageBus().connect()
+    bus = await aio.session_bus()
+    bus2 = await aio.session_bus()
     await bus.request_name(bus_name)
     service_interface = ExampleInterface()
     bus.export('/test/path', service_interface)
@@ -80,12 +80,12 @@ async def test_aio_proxy_object():
 
 def test_glib_proxy_object():
     bus_name = 'glib.client.test.methods'
-    bus = glib.MessageBus().connect_sync()
+    bus = glib.session_bus_sync()
     bus.request_name_sync(bus_name)
     service_interface = ExampleInterface()
     bus.export('/test/path', service_interface)
 
-    bus2 = glib.MessageBus().connect_sync()
+    bus2 = glib.session_bus_sync()
     introspection = bus2.introspect_sync(bus_name, '/test/path')
     assert type(introspection) is intr.Node
     obj = bus.get_proxy_object(bus_name, '/test/path', introspection)

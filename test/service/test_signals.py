@@ -1,5 +1,5 @@
 from dbus_next.service import ServiceInterface, signal, SignalDisabledError
-from dbus_next.aio import MessageBus
+from dbus_next.aio import session_bus
 from dbus_next import Message, MessageType
 
 import pytest
@@ -35,8 +35,8 @@ class ExampleInterface(ServiceInterface):
 
 @pytest.mark.asyncio
 async def test_signals():
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await session_bus()
+    bus2 = await session_bus()
 
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
