@@ -2,6 +2,12 @@ from enum import Enum, IntFlag
 
 
 class BusType(Enum):
+    """An enum that indicates a type of bus.
+
+    On most systems, there are normally two different kinds of buses running:
+    one persistent system bus for the whole machine and a session bus for each
+    graphical user session.
+    """
     SESSION = 1
     SYSTEM = 2
 

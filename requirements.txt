@@ -4,3 +4,4 @@ pytest-timeout
 pytest-cov
 yapf
 flake8
+sphinx

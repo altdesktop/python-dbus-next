@@ -1,4 +1,4 @@
-.PHONY: test format lint all clean publish
+.PHONY: test format lint all clean publish docs coverage
 .DEFAULT_GOAL := all
 
 source_dirs = dbus_next test examples
@@ -7,7 +7,7 @@ lint:
 	flake8 $(source_dirs)
 
 format:
-	yapf -ipr $(source_dirs)
+	yapf -rip $(source_dirs)
 
 test:
 	dbus-run-session pytest -s
@@ -20,11 +20,14 @@ coverage:
 	dbus-run-session pytest --cov=dbus_next
 
 clean:
-	rm -rf dist dbus_next.egg-info build
+	rm -rf dist dbus_next.egg-info build docs/_build
 	rm -rf `find -type d -name __pycache__`
 
 publish:
 	python3 setup.py sdist bdist_wheel
 	python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+
+docs:
+	cd docs; PYTHONPATH=../ make html
 
 all: format lint test
