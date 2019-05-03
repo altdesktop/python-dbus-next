@@ -5,7 +5,20 @@ from typing import Any, List
 
 
 class SignatureType:
-    parsable_tokens = 'ybnqiuxtdsogav({'
+    """A class that represents a single complete type within a signature.
+
+    This class is not meant to be constructed directly. Use the :class:`SignatureTree`
+    class to parse signatures.
+
+    :ivar ~.signature: The signature of this complete type.
+    :vartype ~.signature: str
+
+    :ivar children: A list of child types if this is a container type. Arrays \
+    have one child type, dict entries have two child types (key and value), and \
+    structs have child types equal to the number of struct members.
+    :vartype children: list(:class:`SignatureType`)
+    """
+    _tokens = 'ybnqiuxtdsogav({'
 
     def __init__(self, token):
         self.token = token
@@ -44,7 +57,7 @@ class SignatureType:
 
         token = signature[0]
 
-        if token not in SignatureType.parsable_tokens:
+        if token not in SignatureType._tokens:
             raise InvalidSignatureError(f'got unexpected token: "{token}"')
 
         # container types
@@ -217,7 +230,13 @@ class SignatureType:
         if not isinstance(body, Variant):
             raise SignatureBodyMismatchError('DBus VARIANT type "v" must be Python type "Variant"')
 
-    def verify(self, body):
+    def verify(self, body: Any):
+        """Verify that the body matches this type.
+
+        :returns: True if the body matches this type.
+        :raises:
+            :class:`SignatureBodyMismatchError` if the body does not match this type.
+        """
         if body is None:
             raise SignatureBodyMismatchError('Cannot serialize Python type "None"')
         elif self.token == 'y':
@@ -255,6 +274,8 @@ class SignatureType:
         else:
             raise Exception(f'cannot verify type with token {self.token}')
 
+        return True
+
 
 class SignatureTree:
     """A class that represents a signature as a tree structure for conveniently
@@ -262,11 +283,17 @@ class SignatureTree:
 
     This class will not normally be used directly by the user.
 
-    :param signature: The signature string to parse into a tree.
+    :ivar types: A list of parsed complete types.
+    :vartype types: list(:class:`SignatureType`)
+
+    :ivar ~.signature: The signature of this signature tree.
+    :vartype ~.signature: str
+
+    :raises:
+        :class:`InvalidSignatureError` if the given signature is not valid.
     """
 
     def __init__(self, signature: str = ''):
-        #: :type str: initial 'hi':
         self.signature = signature
 
         self.types = []
@@ -285,6 +312,16 @@ class SignatureTree:
             return super().__eq__(other)
 
     def verify(self, body: List[Any]):
+        """Verifies that the give body matches this signature tree
+
+        :param body: the body to verify for this tree
+        :type body: list(Any)
+
+        :returns: True if the signature matches the body or an exception if not.
+
+        :raises:
+            :class:`SignatureBodyMismatchError` if the signature does not match the body.
+        """
         if not isinstance(body, list):
             raise SignatureBodyMismatchError(f'The body must be a list (got {type(body)})')
         if len(body) != len(self.types):
@@ -294,16 +331,31 @@ class SignatureTree:
         for i, type_ in enumerate(self.types):
             type_.verify(body[i])
 
+        return True
+
 
 class Variant:
     """A class to represent a DBus variant (type "v").
 
-    This class will be used in message bodies to represent variants. The user
-    can expect a value in the body with type "v" to use this class and can
+    This class is used in message bodies to represent variants. The user can
+    expect a value in the body with type "v" to use this class and can
     construct this class directly for use in message bodies sent over the bus.
 
-    :param signature: Must be a valid signature string.
-    :param value: The value must match the signature.
+    :param signature: The signature of this Variant. Must be a valid signature string.
+    :param value: The value of this Variant. The value must match the signature.
+
+    :ivar signature:
+    :vartype signature: str
+
+    :ivar signature_type: The parsed :class:`SignatureType` of this variant.
+    :vartype signature_type: SignatureType
+
+    :ivar value:
+    :vartype value: Any
+
+    :raises:
+        :class:`InvalidSignatureError` if the signature is not valid.
+        :class:`SignatureBodyMismatchError` if the signature does not match the body.
     """
 
     def __init__(self, signature: str, value: Any):
@@ -330,22 +382,8 @@ class Variant:
         signature_type.verify(value)
 
         self.type = signature_type
-        """The type tree of the signature.
-
-        :type: SignatureType
-        """
-
         self.signature = signature_str
-        """The signature string of the Variant.
-
-        :type: str
-        """
-
         self.value = value
-        """The value of the Variant. The value will match the signature.
-
-        :type: Any
-        """
 
     def __eq__(self, other):
         if type(other) is Variant:

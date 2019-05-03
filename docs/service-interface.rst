@@ -5,8 +5,8 @@ Service Interface
     :members:
     :undoc-members:
 
-.. autofunction:: dbus_next.service.dbus_property
+.. autodecorator:: dbus_next.service.dbus_property
 
-.. autofunction:: dbus_next.service.method
+.. autodecorator:: dbus_next.service.method
 
-.. autofunction:: dbus_next.service.signal
+.. autodecorator:: dbus_next.service.signal
