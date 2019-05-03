@@ -6,7 +6,17 @@ _path_re = re.compile(r'^[A-Za-z0-9_]+$')
 _element_re = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
-def is_bus_name_valid(name):
+def is_bus_name_valid(name: str) -> bool:
+    """Whether this is a valid bus name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-bus
+
+    :param name: The bus name to validate.
+    :type name: str
+
+    :returns: Whether the name is a valid bus name.
+    :rtype: bool
+    """
     if not isinstance(name, str):
         return False
 
@@ -30,7 +40,17 @@ def is_bus_name_valid(name):
     return True
 
 
-def is_object_path_valid(path):
+def is_object_path_valid(path: str) -> bool:
+    """Whether this is a valid object path.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
+
+    :param path: The object path to validate.
+    :type path: str
+
+    :returns: Whether the object path is valid.
+    :rtype: bool
+    """
     if not isinstance(path, str):
         return False
 
@@ -50,7 +70,17 @@ def is_object_path_valid(path):
     return True
 
 
-def is_interface_name_valid(name):
+def is_interface_name_valid(name: str) -> bool:
+    """Whether this is a valid interface name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-interface
+
+    :param name: The interface name to validate.
+    :type name: str
+
+    :returns: Whether the name is a valid interface name.
+    :rtype: bool
+    """
     if not isinstance(name, str):
         return False
 
@@ -70,34 +100,84 @@ def is_interface_name_valid(name):
     return True
 
 
-def is_member_name_valid(name):
-    if not isinstance(name, str):
+def is_member_name_valid(member: str) -> bool:
+    """Whether this is a valid member name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-member
+
+    :param member: The member name to validate.
+    :type member: str
+
+    :returns: Whether the name is a valid member name.
+    :rtype: bool
+    """
+    if not isinstance(member, str):
         return False
 
-    if not name or len(name) > 255:
+    if not member or len(member) > 255:
         return False
 
-    if _element_re.search(name) is None:
+    if _element_re.search(member) is None:
         return False
 
     return True
 
 
-def assert_bus_name_valid(name):
+def assert_bus_name_valid(name: str):
+    """Raise an error if this is not a valid bus name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-bus
+
+    :param name: The bus name to validate.
+    :type name: str
+
+    :raises:
+        - :class:`InvalidBusNameError` - If this is not a valid bus name.
+    """
     if not is_bus_name_valid(name):
         raise InvalidBusNameError(name)
 
 
-def assert_object_path_valid(path):
+def assert_object_path_valid(path: str):
+    """Raise an error if this is not a valid object path.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
+
+    :param path: The object path to validate.
+    :type path: str
+
+    :raises:
+        - :class:`InvalidObjectPathError` - If this is not a valid object path.
+    """
     if not is_object_path_valid(path):
         raise InvalidObjectPathError(path)
 
 
-def assert_interface_name_valid(name):
+def assert_interface_name_valid(name: str):
+    """Raise an error if this is not a valid interface name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-interface
+
+    :param name: The interface name to validate.
+    :type name: str
+
+    :raises:
+        - :class:`InvalidInterfaceNameError` - If this is not a valid object path.
+    """
     if not is_interface_name_valid(name):
         raise InvalidInterfaceNameError(name)
 
 
 def assert_member_name_valid(member):
+    """Raise an error if this is not a valid member name.
+
+    .. seealso:: https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-member
+
+    :param member: The member name to validate.
+    :type member: str
+
+    :raises:
+        - :class:`InvalidMemberNameError` - If this is not a valid object path.
+    """
     if not is_member_name_valid(member):
         raise InvalidMemberNameError(member)
