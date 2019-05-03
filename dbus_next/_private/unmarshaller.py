@@ -1,8 +1,7 @@
 from ..message import Message
 from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION
 from ..constants import MessageType, MessageFlag
-from ..signature import SignatureTree
-from ..variant import Variant
+from ..signature import SignatureTree, Variant
 from ..errors import InvalidMessageError
 
 from struct import unpack

@@ -1,8 +1,7 @@
 from .constants import PropertyAccess
-from .signature import SignatureTree, SignatureBodyMismatchError
+from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
 from .message import Message
-from .variant import Variant
 from .errors import SignalDisabledError
 
 from functools import wraps

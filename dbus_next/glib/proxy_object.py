@@ -1,7 +1,7 @@
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message import Message
 from ..errors import DBusError
-from ..variant import Variant
+from ..signature import Variant
 from ..constants import ErrorType
 
 # glib is optional

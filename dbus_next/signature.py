@@ -1,6 +1,7 @@
 from .validators import is_object_path_valid
-from .variant import Variant
 from .errors import InvalidSignatureError, SignatureBodyMismatchError
+
+from typing import Any, List
 
 
 class SignatureType:
@@ -256,8 +257,18 @@ class SignatureType:
 
 
 class SignatureTree:
-    def __init__(self, signature=''):
+    """A class that represents a signature as a tree structure for conveniently
+    working with DBus signatures.
+
+    This class will not normally be used directly by the user.
+
+    :param signature: The signature string to parse into a tree.
+    """
+
+    def __init__(self, signature: str = ''):
+        #: :type str: initial 'hi':
         self.signature = signature
+
         self.types = []
 
         if len(signature) > 0xff:
@@ -273,7 +284,7 @@ class SignatureTree:
         else:
             return super().__eq__(other)
 
-    def verify(self, body):
+    def verify(self, body: List[Any]):
         if not isinstance(body, list):
             raise SignatureBodyMismatchError(f'The body must be a list (got {type(body)})')
         if len(body) != len(self.types):
@@ -282,3 +293,62 @@ class SignatureTree:
             )
         for i, type_ in enumerate(self.types):
             type_.verify(body[i])
+
+
+class Variant:
+    """A class to represent a DBus variant (type "v").
+
+    This class will be used in message bodies to represent variants. The user
+    can expect a value in the body with type "v" to use this class and can
+    construct this class directly for use in message bodies sent over the bus.
+
+    :param signature: Must be a valid signature string.
+    :param value: The value must match the signature.
+    """
+
+    def __init__(self, signature: str, value: Any):
+        signature_str = ''
+        signature_tree = None
+        signature_type = None
+
+        if type(signature) is SignatureTree:
+            signature_tree = signature
+        elif type(signature) is SignatureType:
+            signature_type = signature
+            signature_str = signature.signature
+        elif type(signature) is str:
+            signature_tree = SignatureTree(signature)
+        else:
+            raise TypeError('signature must be a SignatureTree, SignatureType, or a string')
+
+        if signature_tree:
+            if len(signature_tree.types) != 1:
+                raise ValueError('variants must have a signature for a single complete type')
+            signature_str = signature_tree.signature
+            signature_type = signature_tree.types[0]
+
+        signature_type.verify(value)
+
+        self.type = signature_type
+        """The type tree of the signature.
+
+        :type: SignatureType
+        """
+
+        self.signature = signature_str
+        """The signature string of the Variant.
+
+        :type: str
+        """
+
+        self.value = value
+        """The value of the Variant. The value will match the signature.
+
+        :type: Any
+        """
+
+    def __eq__(self, other):
+        if type(other) is Variant:
+            return self.signature == other.signature and self.value == other.value
+        else:
+            return super().__eq__(other)

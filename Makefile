@@ -28,6 +28,9 @@ publish:
 	python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
 
 docs:
-	cd docs; PYTHONPATH=../ make html
+	sphinx-build docs docs/_build/html
+
+livedocs:
+	sphinx-autobuild docs docs/_build/html --watch dbus_next -i '*swp' -i '*~'
 
 all: format lint test

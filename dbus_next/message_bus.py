@@ -4,7 +4,7 @@ from .constants import BusType, MessageFlag, MessageType, ErrorType, NameFlag, R
 from .service import ServiceInterface
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from .errors import DBusError, InvalidAddressError
-from .variant import Variant
+from .signature import Variant
 from . import introspection as intr
 
 import inspect
