@@ -14,7 +14,7 @@ import logging
 
 
 class BaseMessageBus():
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION):
+    def __init__(self, bus_address=None, bus_type=BusType.SESSION, ProxyObjectClass=None):
         self.unique_name = None
         self.disconnected = False
 
@@ -30,6 +30,7 @@ class BaseMessageBus():
         self._path_exports = {}
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
+        self._ProxyObjectClass = ProxyObjectClass
 
         # machine id is lazy loaded
         self._machine_id = None
@@ -144,8 +145,10 @@ class BaseMessageBus():
                     body=[name]), reply_notify if callback else None)
 
     def get_proxy_object(self, bus_name, path, introspection):
-        # TODO pass in the proxy object class to the constructor and implement this here
-        raise NotImplementedError('this method must be implemented in the child class')
+        if not self._ProxyObjectClass:
+            raise Exception('the message bus implementation did not provide a proxy object class')
+
+        return self._ProxyObjectClass(bus_name, path, introspection, self)
 
     def disconnect(self):
         self._sock.shutdown(socket.SHUT_RDWR)

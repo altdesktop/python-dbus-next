@@ -122,7 +122,7 @@ class MessageBus(BaseMessageBus):
         if _import_error:
             raise _import_error
 
-        super().__init__(bus_address, bus_type)
+        super().__init__(bus_address, bus_type, ProxyObject)
         self.main_context = main_context if main_context else GLib.main_context_default()
 
     def connect(self, connect_notify=None):
@@ -316,9 +316,6 @@ class MessageBus(BaseMessageBus):
 
     def call(self, msg, reply_notify=None):
         self._call(msg, reply_notify)
-
-    def get_proxy_object(self, bus_name, path, introspection):
-        return ProxyObject(bus_name, path, introspection, self)
 
     def _schedule_write(self):
         if self.writable_source is None or self.writable_source.is_destroyed():

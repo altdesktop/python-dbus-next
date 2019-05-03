@@ -13,7 +13,7 @@ import traceback
 
 class MessageBus(BaseMessageBus):
     def __init__(self, bus_address=None, bus_type=BusType.SESSION, loop=None):
-        super().__init__(bus_address, bus_type)
+        super().__init__(bus_address, bus_type, ProxyObject)
         self.loop = loop if loop else asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
 
@@ -136,9 +136,6 @@ class MessageBus(BaseMessageBus):
             return
 
         asyncio.ensure_future(self.loop.sock_sendall(self._sock, msg._marshall()))
-
-    def get_proxy_object(self, bus_name, path, introspection):
-        return ProxyObject(bus_name, path, introspection, self)
 
     def _message_reader(self):
         try:

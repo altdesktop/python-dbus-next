@@ -13,6 +13,7 @@ from gi.repository import GLib
 main = GLib.MainLoop()
 bus = session_bus_sync()
 
+
 def reply_handler(reply, err):
     main.quit()
 
