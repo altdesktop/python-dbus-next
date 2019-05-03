@@ -47,7 +47,7 @@ class SignatureType:
         return ''.join(signature)
 
     @property
-    def signature(self):
+    def signature(self) -> str:
         return self._collapse()
 
     @staticmethod
@@ -230,7 +230,7 @@ class SignatureType:
         if not isinstance(body, Variant):
             raise SignatureBodyMismatchError('DBus VARIANT type "v" must be Python type "Variant"')
 
-    def verify(self, body: Any):
+    def verify(self, body: Any) -> bool:
         """Verify that the body matches this type.
 
         :returns: True if the body matches this type.
@@ -340,9 +340,6 @@ class Variant:
     This class is used in message bodies to represent variants. The user can
     expect a value in the body with type "v" to use this class and can
     construct this class directly for use in message bodies sent over the bus.
-
-    :param signature: The signature of this Variant. Must be a valid signature string.
-    :param value: The value of this Variant. The value must match the signature.
 
     :ivar signature:
     :vartype signature: str

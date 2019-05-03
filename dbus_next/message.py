@@ -1,26 +1,76 @@
+from __future__ import annotations
+
 from ._private.marshaller import Marshaller
 from .constants import MessageType, MessageFlag, ErrorType
 from ._private.constants import PROTOCOL_VERSION, HeaderField, LITTLE_ENDIAN
-from .validators import is_bus_name_valid, is_member_name_valid, is_object_path_valid, is_interface_name_valid
+from .validators import assert_bus_name_valid, assert_member_name_valid, assert_object_path_valid, assert_interface_name_valid
 from .errors import InvalidMessageError
 from .signature import SignatureTree, Variant
 
+from typing import List, Any
+
 
 class Message:
+    """A class for sending and receiving messages through the
+    :class:`MessageBus <dbus_next.message_bus.BaseMessageBus>` with the
+    low-level api.
+
+    A ``Message`` can be constructed by the user to send over the message bus.
+    When messages are received, such as from method calls or signal emissions,
+    they will use this class as well.
+
+    :ivar destination: The address of the client for which this message is intended.
+    :vartype destination: str
+    :ivar path: The intended object path exported on the destination bus.
+    :vartype path: str
+    :ivar interface: The intended interface on the object path.
+    :vartype interface: str
+    :ivar member: The intended member on the interface.
+    :vartype member: str
+    :ivar message_type: The type of this message. A method call, signal, method return, or error.
+    :vartype message_type: :class:`MessageType`
+    :ivar flags: Flags that affect the behavior of this message.
+    :vartype flags: :class:`MessageFlag`
+    :ivar error_name: If this message is an error, the name of this error. Must be a valid interface name.
+    :vartype error_name: str
+    :ivar reply_serial: If this is a return type, the serial this message is in reply to.
+    :vartype reply_serial: int
+    :ivar sender: The address of the sender of this message. Will be a unique name.
+    :vartype sender: str
+    :ivar unix_fds: A list of unix fds that were sent in the header of this message.
+    :vartype unix_fds: list(int)
+    :ivar signature: The signature of the body of this message.
+    :vartype signature: str
+    :ivar signature_tree: The signature parsed as a signature tree.
+    :vartype signature_tree: :class:`SignatureTree`
+    :ivar body: The body of this message. Must match the signature.
+    :vartype body: list(Any)
+    :ivar serial: The serial of the message. Will be automatically set during message sending if not present. Use the ``new_serial()`` method of the bus to generate a serial.
+    :vartype serial: int
+
+    :raises:
+        - :class:`InvalidMessageError` - If the message is malformed or missing fields for the message type.
+        - :class:`InvalidSignatureError` - If the given signature is not valid.
+        - :class:`InvalidObjectPathError` - If ``path`` is not a valid object path.
+        - :class:`InvalidBusNameError` - If ``destination`` is not a valid bus name.
+        - :class:`InvalidMemberNameError` - If ``member`` is not a valid member name.
+        - :class:`InvalidInterfaceNameError` - If ``error_name`` or ``interface`` is not a valid interface name.
+    """
+
     def __init__(self,
-                 destination=None,
-                 path=None,
-                 interface=None,
-                 member=None,
-                 message_type=MessageType.METHOD_CALL,
-                 flags=MessageFlag.NONE,
-                 error_name=None,
-                 reply_serial=None,
-                 sender=None,
-                 unix_fds=[],
-                 signature='',
-                 body=[],
-                 serial=0):
+                 destination: str = None,
+                 path: str = None,
+                 interface: str = None,
+                 member: str = None,
+                 message_type: MessageType = MessageType.METHOD_CALL,
+                 flags: MessageFlag = MessageFlag.NONE,
+                 error_name: str = None,
+                 reply_serial: int = None,
+                 sender: str = None,
+                 unix_fds: List[int] = [],
+                 signature: str = '',
+                 body: List[Any] = [],
+                 serial: int = 0):
         self.destination = destination
         self.path = path
         self.interface = interface
@@ -37,16 +87,16 @@ class Message:
         self.body = body
         self.serial = serial
 
-        if self.destination and not is_bus_name_valid(self.destination):
-            raise InvalidMessageError(f'invalid destination: {self.destination}')
-        elif self.interface and not is_interface_name_valid(self.interface):
-            raise InvalidMessageError(f'invalid interface name: {self.interface}')
-        elif self.path and not is_object_path_valid(self.path):
-            raise InvalidMessageError(f'invalid path: {self.path}')
-        elif self.member and not is_member_name_valid(self.member):
-            raise InvalidMessageError(f'invalid member: {self.member}')
-        elif self.error_name and not is_interface_name_valid(self.error_name):
-            raise InvalidMessageError(f'invalid error_name: {self.error_name}')
+        if self.destination is not None:
+            assert_bus_name_valid(self.destination)
+        if self.interface is not None:
+            assert_interface_name_valid(self.interface)
+        if self.path is not None:
+            assert_object_path_valid(self.path)
+        if self.member is not None:
+            assert_member_name_valid(self.member)
+        if self.error_name is not None:
+            assert_interface_name_valid(self.error_name)
 
         def require_fields(*fields):
             for field in fields:
@@ -65,7 +115,21 @@ class Message:
             raise InvalidMessageError(f'got unknown message type: {self.message_type}')
 
     @staticmethod
-    def new_error(msg, error_name, error_text):
+    def new_error(msg: Message, error_name: str, error_text: str) -> Message:
+        """A convenience constructor to create an error message in reply to the given message.
+
+        :param msg: The message this error is in reply to.
+        :type msg: :class:`Message`
+        :param error_name: The name of this error. Must be a valid interface name.
+        :type error_name: str
+        :param error_text: Human-readable text for the error.
+
+        :returns: The error message.
+        :rtype: :class:`Message`
+
+        :raises:
+            - :class:`InvalidInterfaceNameError` - If the error_name is not a valid interface name.
+        """
         return Message(message_type=MessageType.ERROR,
                        reply_serial=msg.serial,
                        destination=msg.sender,
@@ -74,7 +138,22 @@ class Message:
                        body=[error_text])
 
     @staticmethod
-    def new_method_return(msg, signature='', body=[]):
+    def new_method_return(msg: Message, signature: str = '', body: List[Any] = []) -> Message:
+        """A convenience constructor to create a method return to the given method call message.
+
+        :param msg: The method call message this is a reply to.
+        :type msg: :class:`Message`
+        :param signature: The signature for the message body.
+        :type signature: str
+        :param body: The body of this message. Must match the signature.
+        :type body: list(Any)
+
+        :returns: The method return message
+        :rtype: :class:`Message`
+
+        :raises:
+            - :class:`InvalidSignatureError` - If the signature is not a valid signature.
+        """
         return Message(message_type=MessageType.METHOD_RETURN,
                        reply_serial=msg.serial,
                        destination=msg.sender,
@@ -82,7 +161,33 @@ class Message:
                        body=body)
 
     @staticmethod
-    def new_signal(path, interface, member, signature='', body=None):
+    def new_signal(path: str,
+                   interface: str,
+                   member: str,
+                   signature: str = '',
+                   body: List[Any] = None) -> Message:
+        """A convenience constructor to create a new signal message.
+
+        :param path: The path of this signal.
+        :type path: str
+        :param interface: The interface of this signal.
+        :type interface: str
+        :param member: The member name of this signal.
+        :type member: str
+        :param signature: The signature of the signal body.
+        :type signature: str
+        :param body: The body of this signal message.
+        :type body: list(Any)
+
+        :returns: The signal message.
+        :rtype: :class:`Message`
+
+        :raises:
+            - :class:`InvalidSignatureError` - If the signature is not a valid signature.
+            - :class:`InvalidObjectPathError` - If ``path`` is not a valid object path.
+            - :class:`InvalidInterfaceNameError` - If ``interface`` is not a valid interface name.
+            - :class:`InvalidMemberNameError` - If ``member`` is not a valid member name.
+        """
         body = body if body else []
         return Message(message_type=MessageType.SIGNAL,
                        interface=interface,
