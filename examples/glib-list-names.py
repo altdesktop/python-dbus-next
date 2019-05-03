@@ -3,18 +3,15 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 
-from dbus_next.message import Message
-from dbus_next.glib.message_bus import MessageBus
+from dbus_next import Message
+from dbus_next.glib import session_bus_sync
 
 import json
 import signal
 from gi.repository import GLib
 
 main = GLib.MainLoop()
-bus = MessageBus()
-
-bus.connect()
-
+bus = session_bus_sync()
 
 def reply_handler(reply, err):
     main.quit()

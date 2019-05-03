@@ -2,7 +2,7 @@
 
 The next great DBus library for Python.
 
-*This project is unversioned and the public api is unstable*
+*This project is in the early stages of development and the public api is unstable*
 
 python-dbus-next is an upcoming Python library for DBus that aims to be a fully featured high level library primarily geared towards integration of applications into Linux desktop and mobile environments.
 
@@ -25,7 +25,7 @@ python-dbus-next plans to improve over other DBus libraries for Python in the fo
 *The client interface is unstable*
 
 ```python
-from dbus_next.aio.message_bus import MessageBus
+from dbus_next.aio import session_bus
 
 import asyncio
 
@@ -33,7 +33,7 @@ loop = asyncio.get_event_loop()
 
 
 async def main():
-    bus = await MessageBus().connect()
+    bus = await session_bus()
     # the introspection xml would normally be included in your project, but
     # this is convenient for development
     introspection = await bus.introspect('org.mpris.MediaPlayer2.vlc', '/org/mpris/MediaPlayer2')
@@ -67,9 +67,8 @@ loop.run_until_complete(main())
 *The service interface is unstable*
 
 ```python
-from dbus_next.service import ServiceInterface, method, dbus_property, signal
-from dbus_next.aio.message_bus import MessageBus
-from dbus_next.variant import Variant
+from dbus_next import ServiceInterface, method, dbus_property, signal, Variant
+from dbus_next.aio session_bus
 
 import asyncio
 
@@ -111,7 +110,7 @@ class ExampleInterface(ServiceInterface):
         return ['hello', 'world']
 
 async def main():
-    bus = await MessageBus().connect()
+    bus = await session_bus()
     await bus.request_name('test.name')
     interface = ExampleInterface('test.interface')
     bus.export('/test/path', interface)
@@ -125,9 +124,8 @@ asyncio.get_event_loop().run_until_complete(main())
 *The low-level interface is unstable*
 
 ```python
-from dbus_next.message import Message
-from dbus_next.constants import MessageType
-from dbus_next.aio.message_bus import MessageBus
+from dbus_next.message import Message, MessageType
+from dbus_next.aio import session_bus
 
 import asyncio
 import json
@@ -136,7 +134,7 @@ loop = asyncio.get_event_loop()
 
 
 async def main():
-    bus = await MessageBus().connect()
+    bus = await session_bus()
 
     reply = await bus.call(
         Message(destination='org.freedesktop.DBus',
