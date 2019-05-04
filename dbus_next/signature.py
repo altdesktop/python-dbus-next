@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .validators import is_object_path_valid
 from .errors import InvalidSignatureError, SignatureBodyMismatchError
 

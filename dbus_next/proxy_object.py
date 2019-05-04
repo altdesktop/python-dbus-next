@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from .message_bus import BaseMessageBus
 from .message import Message

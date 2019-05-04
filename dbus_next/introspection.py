@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .constants import PropertyAccess, ArgDirection
 from .signature import SignatureTree, SignatureType
 from .validators import assert_member_name_valid, assert_interface_name_valid

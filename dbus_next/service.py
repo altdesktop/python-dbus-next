@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
@@ -6,6 +8,17 @@ from .errors import SignalDisabledError
 
 from functools import wraps
 import inspect
+from typing import no_type_check_decorator, Dict, List, Any
+
+# TODO: if the user uses `from __future__ import annotations` in their code,
+# the annotation inspection will not work because of PEP 563. We will get
+# something that needs to be evaled because type hints will become "forward
+# definitions". You can do this eval automatically with
+# typing.get_type_hints(). This fails without the __future__ import on
+# python 3.7 but will always succeed on python4. I don't know how to tell if
+# the user has imported the future annotation feature. We might just not
+# support the future import on python3 for now and do a check for python4
+# later. I really hope they keep supporting this use case.
 
 
 class _Method:
@@ -22,8 +35,7 @@ class _Method:
                 continue
             if param.annotation is inspect.Signature.empty:
                 raise ValueError(
-                    'method parameters must specify the dbus type string as a return annotation string'
-                )
+                    'method parameters must specify the dbus type string as an annotation')
             in_args.append(intr.Arg(param.annotation, intr.ArgDirection.IN, param.name))
             in_signature += param.annotation
 
@@ -43,7 +55,44 @@ class _Method:
         self.out_signature_tree = SignatureTree(out_signature)
 
 
-def method(name=None, disabled=False):
+def method(name: str = None, disabled: bool = False):
+    """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus service method.
+
+    The parameters and return value must each be annotated with a signature
+    string of a single complete DBus type.
+
+    This class method will be called when a client calls the method on the DBus
+    interface. The parameters given to the function come from the calling
+    client and will conform to the dbus-next type system. The parameters
+    returned will be returned to the calling client and must conform to the
+    dbus-next type system. If multiple parameters are returned, they must be
+    contained within a :class:`list`.
+
+    The decorated method may raise a :class:`DBusError <dbus_next.DBusError>`
+    to return an error to the client.
+
+    :param name: The member name that DBus clients will use to call this method. Defaults to the name of the class method.
+    :type name: str
+    :param disabled: If set to true, the method will not be visible to clients.
+    :type disabled: bool
+
+    :example:
+    ::
+
+        @method()
+        def echo(self, val: 's') -> 's':
+            return val
+
+        @method()
+        def echo_two(self, val1: 's', val2: 'u') -> 'su':
+            return [val1, val2]
+    """
+    if name is not None and type(name) is not str:
+        raise TypeError('name must be a string')
+    if type(disabled) is not bool:
+        raise TypeError('disabled must be a bool')
+
+    @no_type_check_decorator
     def decorator(fn):
         @wraps(fn)
         def wrapped(*args, **kwargs):
@@ -81,7 +130,40 @@ class _Signal:
         self.introspection = intr.Signal(self.name, args)
 
 
-def signal(name=None, disabled=False):
+def signal(name: str = None, disabled: bool = False):
+    """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus signal.
+
+    The signal is broadcast on the bus when the decorated class method is
+    called by the user.
+
+    If the signal has an out argument, the class method must have a return type
+    annotation with a signature string of a single complete DBus type and the
+    return value of the class method must conform to the dbus-next type system.
+    If the signal has multiple out arguments, they must be returned within a
+    :class:`list`.
+
+    :param name: The member name that will be used for this signal. Defaults to the name of the class method.
+    :type name: str
+    :param disabled: If set to true, the signal will not be visible to clients.
+    :type disabled: bool
+
+    :example:
+    ::
+
+        @signal()
+        def string_signal(self, val) -> 's':
+            return val
+
+        @signal()
+        def two_strings_signal(self, val1, val2) -> 'ss':
+            return [val1, val2]
+    """
+    if name is not None and type(name) is not str:
+        raise TypeError('name must be a string')
+    if type(disabled) is not bool:
+        raise TypeError('disabled must be a bool')
+
+    @no_type_check_decorator
     def decorator(fn):
         fn_name = name if name else fn.__name__
         signal = _Signal(fn, fn_name, disabled)
@@ -163,7 +245,51 @@ class _Property(property):
         return result
 
 
-def dbus_property(access=PropertyAccess.READWRITE, name=None, disabled=False):
+def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
+                  name: str = None,
+                  disabled: bool = False):
+    """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus property.
+
+    The class method must be a Python getter method with a return annotation
+    that is a signature string of a single complete DBus type. When a client
+    gets the property through the ``org.freedesktop.DBus.Properties``
+    interface, the getter will be called and the resulting value will be
+    returned to the client.
+
+    If the property is writable, it must have a setter method that takes a
+    single parameter that is annotated with the same signature. When a client
+    sets the property through the ``org.freedesktop.DBus.Properties``
+    interface, the setter will be called with the value from the calling
+    client.
+
+    The parameters of the getter and the setter must conform to the dbus-next
+    type system. The getter or the setter may raise a :class:`DBusError
+    <dbus_next.DBusError>` to return an error to the client.
+
+    :param name: The name that DBus clients will use to interact with this property on the bus.
+    :type name: str
+    :param disabled: If set to true, the property will not be visible to clients.
+    :type disabled: bool
+
+    :example:
+    ::
+
+        @dbus_property()
+        def string_prop(self) -> 's':
+            return self._string_prop
+
+        @string_prop.setter
+        def string_prop(self, val: 's'):
+            self._string_prop = val
+    """
+    if type(access) is not PropertyAccess:
+        raise TypeError('access must be a PropertyAccess class')
+    if name is not None and type(name) is not str:
+        raise TypeError('name must be a string')
+    if type(disabled) is not bool:
+        raise TypeError('disabled must be a bool')
+
+    @no_type_check_decorator
     def decorator(fn):
         options = {'name': name, 'access': access, 'disabled': disabled}
         return _Property(fn, options=options)
@@ -172,7 +298,22 @@ def dbus_property(access=PropertyAccess.READWRITE, name=None, disabled=False):
 
 
 class ServiceInterface:
-    def __init__(self, name):
+    """An abstract class that can be extended by the user to define DBus services.
+
+    Instances of :class:`ServiceInterface` can be exported on a path of the bus
+    with the :class:`export <dbus_next.message_bus.BaseMessageBus.export>`
+    method of a :class:`MessageBus <dbus_next.message_bus.BaseMessageBus>`.
+
+    Use the :func:`@method <dbus_next.service.method>`, :func:`@dbus_property
+    <dbus_next.service.dbus_property>`, and :func:`@signal
+    <dbus_next.service.signal>` decorators to mark class methods as DBus
+    methods, properties, and signals respectively.
+
+    :ivar name: The name of this interface as it appears to clients. Must be a valid interface name.
+    :vartype name: str
+    """
+
+    def __init__(self, name: str):
         # TODO cannot be overridden by a dbus member
         self.name = name
         self.__methods = []
@@ -210,7 +351,19 @@ class ServiceInterface:
             if prop.access.writable() and prop.prop_setter is None:
                 raise ValueError(f'property "{member.name}" is writable but does not have a setter')
 
-    def emit_properties_changed(self, changed_properties, invalidated_properties):
+    def emit_properties_changed(self,
+                                changed_properties: Dict[str, Any],
+                                invalidated_properties: List[str] = []):
+        """Emit the ``org.freedesktop.DBus.Properties.PropertiesChanged`` signal.
+
+        This signal is intended to be used to alert clients when a property of
+        the interface has changed.
+
+        :param changed_properties: The keys must be the names of properties exposed by this bus. The values must be valid for the signature of those properties.
+        :type changed_properties: dict(str, Any)
+        :param invalidated_properties: A list of names of properties that are now invalid (presumably for clients who cache the value).
+        :type invalidated_properties: list(str)
+        """
         # TODO cannot be overridden by a dbus member
         variant_dict = {}
 
@@ -223,7 +376,14 @@ class ServiceInterface:
             bus._interface_signal_notify(self, 'org.freedesktop.DBus.Properties',
                                          'PropertiesChanged', 'sa{sv}as', body)
 
-    def introspect(self):
+    def introspect(self) -> intr.Interface:
+        """Get introspection information for this interface.
+
+        This might be useful for creating clients for the interface or examining the introspection output of an interface.
+
+        :returns: The introspection data for the interface.
+        :rtype: :class:`dbus_next.introspection.Interface`
+        """
         # TODO cannot be overridden by a dbus member
         return intr.Interface(self.name,
                               methods=[
