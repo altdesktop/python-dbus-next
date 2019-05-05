@@ -7,6 +7,7 @@ from .constants import MessageType, ErrorType
 from . import introspection as intr
 from .errors import DBusError, InterfaceNotFoundError
 
+from typing import Type, Union, List
 import logging
 import xml.etree.ElementTree as ET
 import inspect
@@ -46,7 +47,42 @@ class BaseProxyInterface:
 
 
 class BaseProxyObject:
-    def __init__(self, bus_name, path, node, bus, ProxyInterface):
+    """An abstract class representing a proxy to an object exported on the bus by another client.
+
+    Implementations of this class are not meant to be constructed directly. Use
+    :func:`BaseMessageBus.get_proxy_object()
+    <dbus_next.message_bus.BaseMessageBus.get_proxy_object>` to get a proxy
+    object. Each message bus implementation provides its own proxy object
+    implementation that will be returned by that method.
+
+    The primary use of the proxy object is to select a proxy interface to act
+    on. Information on what interfaces are available is provided by
+    introspection data provided to this class. This introspection data can
+    either be included in your project as an XML file (recommended) or
+    retrieved from the ``org.freedesktop.DBus.Introspectable`` interface at
+    runtime.
+
+    :ivar bus_name: The name of the bus this object is exported on.
+    :vartype bus_name: str
+    :ivar path: The object path exported on the client that owns the bus name.
+    :vartype path: str
+    :ivar introspection: Parsed introspection data for the proxy object.
+    :vartype introspection: :class:`Node <dbus_next.introspection.Node>`
+    :ivar bus: The message bus this proxy object is connected to.
+    :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
+    :ivar ~.ProxyInterface: The proxy interface class this proxy object uses.
+    :vartype ~.ProxyInterface: Type[:class:`BaseProxyInterface <dbus_next.proxy_object.BaseProxyObject>`]
+    :ivar child_paths: A list of absolute object paths of the children of this object.
+    :vartype child_paths: list(str)
+
+    :raises:
+        - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If the given bus name is not valid.
+        - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
+        - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the introspection data for the node is not valid.
+    """
+
+    def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
+                 bus: BaseMessageBus, ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)
         assert_bus_name_valid(bus_name)
 
@@ -55,27 +91,42 @@ class BaseProxyObject:
         if not issubclass(ProxyInterface, BaseProxyInterface):
             raise TypeError('ProxyInterface must be an instance of BaseProxyInterface')
 
-        if type(node) is intr.Node:
-            self.node = node
-        elif type(node) is str:
-            self.node = intr.Node.parse(node)
-        elif type(node) is ET.Element:
-            self.node = intr.Node.from_xml(node)
+        if type(introspection) is intr.Node:
+            self.introspection = introspection
+        elif type(introspection) is str:
+            self.introspection = intr.Node.parse(introspection)
+        elif type(introspection) is ET.Element:
+            self.introspection = intr.Node.from_xml(introspection)
         else:
-            raise TypeError('node must be xml node introspection or introspection.Node class')
+            raise TypeError(
+                'introspection must be xml node introspection or introspection.Node class')
 
         self.bus_name = bus_name
         self.path = path
         self.bus = bus
         self.ProxyInterface = ProxyInterface
+        self.child_paths = [f'{path}/{n.name}' for n in self.introspection.nodes]
 
-        self.interfaces = []
-        self.child_names = [f'{path}/{n.name}' for n in self.node.nodes]
-        self.signal_handlers = {}
+        self._interfaces = {}
+        self._signal_handlers = {}
 
-    def get_interface(self, name):
+        # lazy loaded by get_children()
+        self._children = None
+
+    def get_interface(self, name: str) -> BaseProxyInterface:
+        """Get an interface exported on this proxy object and connect it to the bus.
+
+        :param name: The name of the interface to retrieve.
+        :type name: str
+
+        :raises:
+            - :class:`InterfaceNotFoundError <dbus_next.InterfaceNotFoundError>` - If there is no interface by this name exported on the bus.
+        """
+        if name in self._interfaces:
+            return self._interfaces[name]
+
         try:
-            intr_interface = next(i for i in self.node.interfaces if i.name == name)
+            intr_interface = next(i for i in self.introspection.interfaces if i.name == name)
         except StopIteration:
             raise InterfaceNotFoundError(f'interface not found on this object: {name}')
 
@@ -123,7 +174,7 @@ class BaseProxyObject:
         def message_handler(msg):
             if msg._matches(message_type=MessageType.SIGNAL,
                             interface=intr_interface.name,
-                            path=self.path) and msg.member in self.signal_handlers:
+                            path=self.path) and msg.member in self._signal_handlers:
                 if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
                                                                              '') != msg.sender:
                     return
@@ -137,17 +188,23 @@ class BaseProxyObject:
                     )
                     return
 
-                for handler in self.signal_handlers[msg.member]:
+                for handler in self._signal_handlers[msg.member]:
                     handler(*msg.body)
 
         self.bus.add_message_handler(message_handler)
 
+        self._interfaces[name] = interface
         return interface
 
-    def get_children(self):
-        return [
-            self.__class__(self.bus_name, self.path, child, self.bus) for child in self.node.nodes
-        ]
+    def get_children(self) -> List[BaseProxyObject]:
+        """Get the child nodes of this proxy object according to the introspection data."""
+        if self._children is None:
+            self._children = [
+                self.__class__(self.bus_name, self.path, child, self.bus)
+                for child in self.introspection.nodes
+            ]
+
+        return self._children
 
     def _add_signal(self, intr_signal, interface):
         def on_signal_fn(fn):
@@ -156,15 +213,15 @@ class BaseProxyObject:
                 raise TypeError(
                     f'reply_notify must be a function with {len(intr_signal.args)} parameters')
 
-            if intr_signal.name not in self.signal_handlers:
-                self.signal_handlers[intr_signal.name] = []
+            if intr_signal.name not in self._signal_handlers:
+                self._signal_handlers[intr_signal.name] = []
 
-            self.signal_handlers[intr_signal.name].append(fn)
+            self._signal_handlers[intr_signal.name].append(fn)
 
         def off_signal_fn(fn):
             try:
-                i = self.signal_handlers[intr_signal.name].index(fn)
-                del self.signal_handlers[intr_signal.name][i]
+                i = self._signal_handlers[intr_signal.name].index(fn)
+                del self._signal_handlers[intr_signal.name][i]
             except (KeyError, ValueError):
                 pass
 

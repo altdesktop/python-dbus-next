@@ -1,8 +1,13 @@
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
+from ..message_bus import BaseMessageBus
 from ..message import Message
 from ..errors import DBusError
 from ..signature import Variant
 from ..constants import ErrorType
+from .. import introspection as intr
+import xml.etree.ElementTree as ET
+
+from typing import Union
 
 # glib is optional
 try:
@@ -174,5 +179,11 @@ class ProxyInterface(BaseProxyInterface):
 
 
 class ProxyObject(BaseProxyObject):
-    def __init__(self, bus_name, path, introspection, bus):
+    """The proxy object implementation for the asyncio :class:`MessageBus <dbus_next.aio.MessageBus>`.
+
+    For more information, see the :class:`BaseProxyObject <dbus_next.proxy_object.BaseProxyObject>`.
+    """
+
+    def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
+                 bus: BaseMessageBus):
         super().__init__(bus_name, path, introspection, bus, ProxyInterface)
