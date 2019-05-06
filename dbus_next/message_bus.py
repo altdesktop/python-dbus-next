@@ -7,6 +7,7 @@ from .service import ServiceInterface
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from .errors import DBusError, InvalidAddressError
 from .signature import Variant
+from .proxy_object import BaseProxyObject
 from . import introspection as intr
 
 import inspect
@@ -14,11 +15,16 @@ import traceback
 import socket
 import logging
 
+from typing import Type, Callable, Optional, Union
 
-class BaseMessageBus():
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION, ProxyObjectClass=None):
+
+class BaseMessageBus:
+    def __init__(self,
+                 bus_address: Optional[str] = None,
+                 bus_type: BusType = BusType.SESSION,
+                 ProxyObject: Optional[Type[BaseProxyObject]] = None):
         self.unique_name = None
-        self.disconnected = False
+        self._disconnected = False
 
         self._method_return_handlers = {}
         # buffer messages until connect
@@ -32,14 +38,14 @@ class BaseMessageBus():
         self._path_exports = {}
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
-        self._ProxyObjectClass = ProxyObjectClass
+        self._ProxyObject = ProxyObject
 
         # machine id is lazy loaded
         self._machine_id = None
 
         self._setup_socket()
 
-    def export(self, path, interface):
+    def export(self, path: str, interface: ServiceInterface):
         assert_object_path_valid(path)
         if not isinstance(interface, ServiceInterface):
             raise TypeError('interface must be a ServiceInterface')
@@ -63,7 +69,7 @@ class BaseMessageBus():
         self._path_exports[path].append(interface)
         ServiceInterface._add_bus(interface, self)
 
-    def unexport(self, path, interface=None):
+    def unexport(self, path: str, interface: Optional[ServiceInterface] = None):
         assert_object_path_valid(path)
         if interface and not isinstance(interface, ServiceInterface):
             raise TypeError('interface must be a ServiceInterface')
@@ -84,7 +90,10 @@ class BaseMessageBus():
                         del self._path_exports[path]
                     break
 
-    def introspect(self, bus_name, path, callback):
+    def introspect(self, bus_name: str, path: str,
+                   callback: Callable[[Optional[intr.Node], Optional[Exception]], None]):
+        BaseMessageBus._check_callback_type(callback)
+
         def reply_notify(reply, err):
             try:
                 BaseMessageBus._check_method_return(reply, err, 's')
@@ -101,8 +110,15 @@ class BaseMessageBus():
                     interface='org.freedesktop.DBus.Introspectable',
                     member='Introspect'), reply_notify)
 
-    def request_name(self, name, flags=NameFlag.NONE, callback=None):
+    def request_name(self,
+                     name: str,
+                     flags: NameFlag = NameFlag.NONE,
+                     callback: Optional[
+                         Callable[[Optional[RequestNameReply], Optional[Exception]], None]] = None):
         assert_bus_name_valid(name)
+
+        if callback is not None:
+            BaseMessageBus._check_callback_type(callback)
 
         def reply_notify(reply, err):
             try:
@@ -125,8 +141,14 @@ class BaseMessageBus():
                     signature='su',
                     body=[name, flags]), reply_notify if callback else None)
 
-    def release_name(self, name, callback=None):
+    def release_name(self,
+                     name: str,
+                     callback: Optional[
+                         Callable[[Optional[ReleaseNameReply], Optional[Exception]], None]] = None):
         assert_bus_name_valid(name)
+
+        if callback is not None:
+            BaseMessageBus._check_callback_type(callback)
 
         def reply_notify(reply, err):
             try:
@@ -146,35 +168,43 @@ class BaseMessageBus():
                     signature='s',
                     body=[name]), reply_notify if callback else None)
 
-    def get_proxy_object(self, bus_name, path, introspection):
-        if not self._ProxyObjectClass:
+    def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node):
+        if not self._ProxyObject:
             raise Exception('the message bus implementation did not provide a proxy object class')
 
-        return self._ProxyObjectClass(bus_name, path, introspection, self)
+        return self._ProxyObject(bus_name, path, introspection, self)
 
     def disconnect(self):
         self._sock.shutdown(socket.SHUT_RDWR)
 
-    def next_serial(self):
+    def next_serial(self) -> int:
         self._serial += 1
         return self._serial
 
-    def add_message_handler(self, handler):
+    def add_message_handler(self, handler: Callable[[Message], Optional[Union[Message, bool]]]):
+        error_text = 'a message handler must be callable with a single parameter'
+        if not callable(handler):
+            raise TypeError(error_text)
+
+        handler_signature = inspect.signature(handler)
+        if len(handler_signature.parameters) != 1:
+            raise TypeError(error_text)
+
         self._user_message_handlers.append(handler)
 
-    def remove_message_handler(self, handler):
+    def remove_message_handler(self, handler: Callable[[Message], Optional[Union[Message, bool]]]):
         for i, h in enumerate(self._user_message_handlers):
             if h == handler:
                 del self._user_message_handlers[i]
                 break
 
-    def send(self, msg):
+    def send(self, msg: Message):
         raise NotImplementedError('the "send" method must be implemented in the inheriting class')
 
     def _finalize(self, err):
         '''should be called after the socket disconnects with the disconnection
         error to clean up resources and put the bus in a disconnected state'''
-        if self.disconnected:
+        if self._disconnected:
             return
 
         for handler in self._method_return_handlers.values():
@@ -185,7 +215,7 @@ class BaseMessageBus():
         for path in list(self._path_exports.keys()):
             self.unexport(path)
 
-        self.disconnected = True
+        self._disconnected = True
 
     def _interface_signal_notify(self, interface, interface_name, member, signature, body):
         path = None
@@ -254,28 +284,36 @@ class BaseMessageBus():
         if err:
             raise err
 
-    # for reply notify, the first argument is the message and the second is an
-    # error
-    def _call(self, msg, reply_notify=None):
-        fn_signature = inspect.signature(reply_notify)
-        if not callable(reply_notify) or len(fn_signature.parameters) != 2:
-            raise TypeError('reply_notify must be a function with two parameters')
+    def _call(self, msg, callback):
+        BaseMessageBus._check_callback_type(callback)
 
         if not msg.serial:
             msg.serial = self.next_serial()
 
-        def notify(reply, err):
+        def reply_notify(reply, err):
             if reply:
                 self._name_owners[msg.destination] = reply.sender
-            reply_notify(reply, err)
+            callback(reply, err)
 
-        if reply_notify:
-            self._method_return_handlers[msg.serial] = notify
+        self._method_return_handlers[msg.serial] = reply_notify
 
         self.send(msg)
 
-        if reply_notify and msg.flags & MessageFlag.NO_REPLY_EXPECTED:
-            reply_notify(None, None)
+        if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
+            callback(None, None)
+
+    @staticmethod
+    def _check_callback_type(callback):
+        """Raise a TypeError if the user gives an invalid callback as a parameter"""
+
+        text = 'a callback must be callable with two parameters'
+
+        if not callable(callback):
+            raise TypeError(text)
+
+        fn_signature = inspect.signature(callback)
+        if len(fn_signature.parameters) != 2:
+            raise TypeError(text)
 
     @staticmethod
     def _check_method_return(msg, err, signature):
@@ -307,12 +345,23 @@ class BaseMessageBus():
                     handled = True
                     break
             except DBusError as e:
-                self.send(e._as_message(msg))
+                if msg.message_type == MessageType.METHOD_CALL:
+                    self.send(e._as_message(msg))
+                    handled = True
+                    break
+                else:
+                    logging.error(
+                        f'A message handler raised an exception: {e}.\n{traceback.format_exc()}')
             except Exception as e:
-                self.send(
-                    Message.new_error(
-                        msg, ErrorType.INTERNAL_ERROR,
-                        f'An internal error occurred: {e}.\n{traceback.format_exc()}'))
+                logging.error(
+                    f'A message handler raised an exception: {e}.\n{traceback.format_exc()}')
+                if msg.message_type == MessageType.METHOD_CALL:
+                    self.send(
+                        Message.new_error(
+                            msg, ErrorType.INTERNAL_ERROR,
+                            f'An internal error occurred: {e}.\n{traceback.format_exc()}'))
+                    handled = True
+                    break
 
         if msg.message_type == MessageType.SIGNAL:
             if msg._matches(sender='org.freedesktop.DBus',

@@ -22,4 +22,4 @@ async def test_bus_disconnect_before_reply(event_loop):
     with pytest.raises(EOFError):
         await ping
 
-    assert bus.disconnected
+    assert bus._disconnected

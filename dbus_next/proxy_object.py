@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .validators import assert_object_path_valid, assert_bus_name_valid
-from .message_bus import BaseMessageBus
+from . import message_bus
 from .message import Message
 from .constants import MessageType, ErrorType
 from . import introspection as intr
@@ -108,11 +108,11 @@ class BaseProxyObject:
     """
 
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
-                 bus: BaseMessageBus, ProxyInterface: Type[BaseProxyInterface]):
+                 bus: message_bus.BaseMessageBus, ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)
         assert_bus_name_valid(bus_name)
 
-        if not isinstance(bus, BaseMessageBus):
+        if not isinstance(bus, message_bus.BaseMessageBus):
             raise TypeError('bus must be an instance of BaseMessageBus')
         if not issubclass(ProxyInterface, BaseProxyInterface):
             raise TypeError('ProxyInterface must be an instance of BaseProxyInterface')
