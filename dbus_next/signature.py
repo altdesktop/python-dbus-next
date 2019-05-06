@@ -3,7 +3,7 @@ from __future__ import annotations
 from .validators import is_object_path_valid
 from .errors import InvalidSignatureError, SignatureBodyMismatchError
 
-from typing import Any, List
+from typing import Any, List, Union
 
 
 class SignatureType:
@@ -343,13 +343,13 @@ class Variant:
     expect a value in the body with type "v" to use this class and can
     construct this class directly for use in message bodies sent over the bus.
 
-    :ivar signature:
+    :ivar signature: The signature for this variant. Must be a single complete type.
     :vartype signature: str
 
-    :ivar signature_type: The parsed :class:`SignatureType` of this variant.
-    :vartype signature_type: SignatureType
+    :ivar signature_type: The parsed signature of this variant.
+    :vartype signature_type: :class:`SignatureType`
 
-    :ivar value:
+    :ivar value: The value of this variant. Must correspond to the signature.
     :vartype value: Any
 
     :raises:
@@ -357,7 +357,7 @@ class Variant:
         :class:`SignatureBodyMismatchError` if the signature does not match the body.
     """
 
-    def __init__(self, signature: str, value: Any):
+    def __init__(self, signature: Union[str, SignatureTree, SignatureType], value: Any):
         signature_str = ''
         signature_tree = None
         signature_type = None
