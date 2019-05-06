@@ -118,12 +118,12 @@ class _AuthLineSource(_GLibSource):
 
 
 class MessageBus(BaseMessageBus):
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION, main_context=None):
+    def __init__(self, bus_address=None, bus_type=BusType.SESSION):
         if _import_error:
             raise _import_error
 
         super().__init__(bus_address, bus_type, ProxyObject)
-        self.main_context = main_context if main_context else GLib.main_context_default()
+        self._main_context = GLib.main_context_default()
 
     def connect(self, connect_notify=None):
         self._stream.write(b'\0')
@@ -141,7 +141,7 @@ class MessageBus(BaseMessageBus):
 
             self.message_source = _MessageSource(self)
             self.message_source.set_callback(self._on_message)
-            self.message_source.attach(self.main_context)
+            self.message_source.attach(self._main_context)
 
             self.writable_source = None
 
@@ -320,13 +320,13 @@ class MessageBus(BaseMessageBus):
     def _schedule_write(self):
         if self.writable_source is None or self.writable_source.is_destroyed():
             self.writable_source = _MessageWritableSource(self)
-            self.writable_source.attach(self.main_context)
+            self.writable_source.attach(self._main_context)
             self.writable_source.add_unix_fd(self._fd, GLib.IO_OUT)
 
     def _auth_readline(self, callback):
         readline_source = _AuthLineSource(self._stream)
         readline_source.set_callback(callback)
         readline_source.add_unix_fd(self._fd, GLib.IO_IN)
-        readline_source.attach(self.main_context)
+        readline_source.attach(self._main_context)
         # make sure it doesnt get cleaned up
         self._readline_source = readline_source

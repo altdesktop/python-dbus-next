@@ -3,23 +3,21 @@ from .proxy_object import ProxyObject, ProxyInterface
 from ..constants import BusType
 
 
-def session_bus(bus_address=None, main_context=None, connect_notify=None):
-    bus = MessageBus(bus_address=bus_address, bus_type=BusType.SESSION, main_context=main_context)
+def session_bus(bus_address=None, connect_notify=None):
+    bus = MessageBus(bus_address=bus_address, bus_type=BusType.SESSION)
     bus.connect(connect_notify)
     return bus
 
 
-def session_bus_sync(bus_address=None, main_context=None):
-    return MessageBus(bus_address=bus_address, bus_type=BusType.SESSION,
-                      main_context=main_context).connect_sync()
+def session_bus_sync(bus_address=None):
+    return MessageBus(bus_address=bus_address, bus_type=BusType.SESSION).connect_sync()
 
 
-def system_bus(bus_address=None, main_context=None, connect_notify=None):
-    bus = MessageBus(bus_address=bus_address, bus_type=BusType.SYSTEM, main_context=main_context)
+def system_bus(bus_address=None, connect_notify=None):
+    bus = MessageBus(bus_address=bus_address, bus_type=BusType.SYSTEM)
     bus.connect(connect_notify)
     return bus
 
 
-def system_bus_sync(bus_address=None, main_context=None):
-    return MessageBus(bus_address=bus_address, bus_type=BusType.SYSTEM,
-                      main_context=main_context).connect_sync()
+def system_bus_sync(bus_address=None):
+    return MessageBus(bus_address=bus_address, bus_type=BusType.SYSTEM).connect_sync()

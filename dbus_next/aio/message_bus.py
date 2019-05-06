@@ -12,16 +12,16 @@ import traceback
 
 
 class MessageBus(BaseMessageBus):
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION, loop=None):
+    def __init__(self, bus_address=None, bus_type=BusType.SESSION):
         super().__init__(bus_address, bus_type, ProxyObject)
-        self.loop = loop if loop else asyncio.get_event_loop()
+        self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
 
     async def connect(self):
-        future = self.loop.create_future()
+        future = self._loop.create_future()
 
-        await self.loop.sock_sendall(self._sock, b'\0')
-        await self.loop.sock_sendall(self._sock, auth_external())
+        await self._loop.sock_sendall(self._sock, b'\0')
+        await self._loop.sock_sendall(self._sock, auth_external())
         response, args = auth_parse_line(await self._auth_readline())
 
         if response != AuthResponse.OK:
@@ -30,7 +30,7 @@ class MessageBus(BaseMessageBus):
         self._stream.write(auth_begin())
         self._stream.flush()
 
-        self.loop.add_reader(self._fd, self._message_reader)
+        self._loop.add_reader(self._fd, self._message_reader)
 
         def on_hello(reply, err):
             if err:
@@ -73,7 +73,7 @@ class MessageBus(BaseMessageBus):
         return await future
 
     async def introspect(self, bus_name, path):
-        future = self.loop.create_future()
+        future = self._loop.create_future()
 
         def reply_handler(reply, err):
             if err:
@@ -86,7 +86,7 @@ class MessageBus(BaseMessageBus):
         return await future
 
     async def request_name(self, name, flags=NameFlag.NONE):
-        future = self.loop.create_future()
+        future = self._loop.create_future()
 
         def reply_handler(reply, err):
             if err:
@@ -99,7 +99,7 @@ class MessageBus(BaseMessageBus):
         return await future
 
     async def release_name(self, name):
-        future = self.loop.create_future()
+        future = self._loop.create_future()
 
         def reply_handler(reply, err):
             if err:
@@ -112,7 +112,7 @@ class MessageBus(BaseMessageBus):
         return await future
 
     async def call(self, msg):
-        future = self.loop.create_future()
+        future = self._loop.create_future()
 
         def reply_handler(reply, err):
             if err:
@@ -135,7 +135,7 @@ class MessageBus(BaseMessageBus):
             self._buffered_messages.append(msg)
             return
 
-        asyncio.ensure_future(self.loop.sock_sendall(self._sock, msg._marshall()))
+        asyncio.ensure_future(self._loop.sock_sendall(self._sock, msg._marshall()))
 
     def _message_reader(self):
         try:
@@ -146,11 +146,11 @@ class MessageBus(BaseMessageBus):
                 else:
                     break
         except Exception as e:
-            self.loop.remove_reader(self._fd)
+            self._loop.remove_reader(self._fd)
             self._finalize(e)
 
     async def _auth_readline(self):
         buf = b''
         while buf[-2:] != b'\r\n':
-            buf += await self.loop.sock_recv(self._sock, 2)
+            buf += await self._loop.sock_recv(self._sock, 2)
         return buf
