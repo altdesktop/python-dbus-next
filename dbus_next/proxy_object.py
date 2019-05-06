@@ -15,7 +15,33 @@ import re
 
 
 class BaseProxyInterface:
+    """An abstract class representing a proxy to an interface exported on the bus by another client.
+
+    Implementations of this class are not meant to be constructed directly by
+    users. Use :func:`BaseProxyObject.get_interface` to get a proxy interface.
+    Each message bus implementation provides its own proxy interface
+    implementation that will be returned by that method.
+
+    Proxy interfaces can be used to call methods, get properties, and listen to
+    signals on the interface. Proxy interfaces are created dynamically with a
+    family of methods for each of these operations based on what members the
+    interface exposes. Each proxy interface implementation exposes these
+    members in a different way depending on the features of the backend. See
+    the documentation of the proxy interface implementation you use for more
+    details.
+
+    :ivar bus_name: The name of the bus this interface is exported on.
+    :vartype bus_name: str
+    :ivar path: The object path exported on the client that owns the bus name.
+    :vartype path: str
+    :ivar introspection: Parsed introspection data for the proxy interface.
+    :vartype introspection: :class:`Node <dbus_next.introspection.Interface>`
+    :ivar bus: The message bus this proxy interface is connected to.
+    :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
+    """
+
     def __init__(self, bus_name, path, introspection, bus):
+
         self.bus_name = bus_name
         self.path = path
         self.introspection = introspection

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
 from ..message import Message
@@ -7,10 +9,65 @@ from ..constants import ErrorType
 from .. import introspection as intr
 import xml.etree.ElementTree as ET
 
-from typing import Union
+from typing import Union, List
 
 
 class ProxyInterface(BaseProxyInterface):
+    """A class representing a proxy to an interface exported on the bus by
+    another client for the asyncio :class:`MessageBus
+    <dbus_next.aio.MessageBus>` implementation.
+
+    This class is not meant to be constructed directly by the user. Use
+    :func:`ProxyObject.get_interface()
+    <dbus_next.aio.ProxyObject.get_interface>` on a asyncio proxy object to get
+    a proxy interface.
+
+    This class exposes methods to call DBus methods, listen to signals, and get
+    and set properties on the interface that are created dynamically based on
+    the introspection data passed to the proxy object that made this proxy
+    interface.
+
+    A *method call* takes this form:
+
+    .. code-block::
+
+        result = await interface.call_[METHOD](*args)
+
+    Where ``METHOD`` is the name of the method converted to snake case.
+
+    DBus methods are exposed as coroutines that take arguments that correpond
+    to the *in args* of the interface method definition and return a ``result``
+    that corresponds to the *out arg*. If the method has more than one out arg,
+    they are returned within a :class:`list`.
+
+    To *listen to a signal* use this form:
+
+    .. code-block::
+
+        interface.on_[SIGNAL](callback)
+
+    Where ``SIGNAL`` is the name of the signal converted to snake case.
+
+    DBus signals are exposed with an event-callback interface. The provided
+    ``callback`` will be called when the signal is emitted with arguments that
+    correspond to the *out args* of the interface signal definition.
+
+    To *get or set a property* use this form:
+
+    .. code-block::
+
+        value = await interface.get_[PROPERTY]()
+        await interface.set_[PROPERTY](value)
+
+    Where ``PROPERTY`` is the name of the property converted to snake case.
+
+    DBus property getters and setters are exposed as coroutines. The ``value``
+    must correspond to the type of the property in the interface definition.
+
+    If the service returns an error for a DBus call, a :class:`DBusError
+    <dbus_next.DBusError>` will be raised with information about the error.
+    """
+
     def _add_method(self, intr_method):
         async def method_fn(*args):
             msg = await self.bus.call(
@@ -77,3 +134,9 @@ class ProxyObject(BaseProxyObject):
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
                  bus: BaseMessageBus):
         super().__init__(bus_name, path, introspection, bus, ProxyInterface)
+
+    def get_interface(self, name: str) -> ProxyInterface:
+        return super().get_interface(name)
+
+    def get_children(self) -> List[ProxyObject]:
+        return super().get_children()
