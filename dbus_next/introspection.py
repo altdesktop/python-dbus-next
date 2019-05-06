@@ -5,6 +5,8 @@ from .signature import SignatureTree, SignatureType
 from .validators import assert_member_name_valid, assert_interface_name_valid
 from .errors import InvalidIntrospectionError
 
+from typing import List, Union
+
 import xml.etree.ElementTree as ET
 
 # https://dbus.freedesktop.org/doc/dbus-specification.html#introspection-format
@@ -12,7 +14,27 @@ import xml.etree.ElementTree as ET
 
 
 class Arg:
-    def __init__(self, signature, direction=None, name=None):
+    """A class that represents an input or output argument to a signal or a method.
+
+    :ivar name: The name of this arg.
+    :vartype name: str
+    :ivar direction: Whether this is an input or an output argument.
+    :vartype direction: :class:`ArgDirection <dbus_next.ArgDirection>`
+    :ivar type: The parsed signature type of this argument.
+    :vartype type: :class:`SignatureType <dbus_next.SignatureType>`
+    :ivar signature: The signature string of this argument.
+    :vartype signature: str
+
+    :raises:
+        - :class:`InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the name of the arg is not valid.
+        - :class:`InvalidSignatureError <dbus_next.InvalidSignatureError>` - If the signature is not valid.
+        - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the signature is not a single complete type.
+    """
+
+    def __init__(self,
+                 signature: Union[SignatureType, str],
+                 direction: List[ArgDirection] = None,
+                 name: str = None):
         if name is not None:
             assert_member_name_valid(name)
 
@@ -32,7 +54,20 @@ class Arg:
         self.name = name
         self.direction = direction
 
-    def from_xml(element, direction):
+    def from_xml(element: ET.Element, direction: ArgDirection) -> Arg:
+        """Convert a :class:`xml.etree.ElementTree.Element` into a
+        :class:`Arg`.
+
+        The element must be valid DBus introspection XML for an ``arg``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+        :param direction: The direction of this arg. Must be specified because it can default to different values depending on if it's in a method or signal.
+        :type direction: :class:`ArgDirection <dbus_next.ArgDirection>`
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         name = element.attrib.get('name')
         signature = element.attrib.get('type')
 
@@ -41,7 +76,9 @@ class Arg:
 
         return Arg(signature, direction, name)
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Arg` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('arg')
         if self.name:
             element.set('name', self.name)
@@ -54,7 +91,20 @@ class Arg:
 
 
 class Signal:
-    def __init__(self, name, args=None):
+    """A class that represents a signal exposed on an interface.
+
+    :ivar name: The name of this signal
+    :vartype name: str
+    :ivar args: A list of output arguments for this signal.
+    :vartype args: list(Arg)
+    :ivar signature: The collected signature of the output arguments.
+    :vartype signature: str
+
+    :raises:
+        - :class:`InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the name of the signal is not a valid member name.
+    """
+
+    def __init__(self, name: str, args: List[Arg] = None):
         if name is not None:
             assert_member_name_valid(name)
 
@@ -63,6 +113,18 @@ class Signal:
         self.signature = ''.join(arg.signature for arg in self.args)
 
     def from_xml(element):
+        """Convert an :class:`xml.etree.ElementTree.Element` to a :class:`Signal`.
+
+        The element must be valid DBus introspection XML for a ``signal``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+        :param is_root: Whether this is the root node
+        :type is_root: bool
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         name = element.attrib.get('name')
         if not name:
             raise InvalidIntrospectionError('signals must have a "name" attribute')
@@ -76,7 +138,9 @@ class Signal:
 
         return signal
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Signal` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('signal')
         element.set('name', self.name)
 
@@ -87,7 +151,24 @@ class Signal:
 
 
 class Method:
-    def __init__(self, name, in_args=[], out_args=[]):
+    """A class that represents a method exposed on an :class:`Interface`.
+
+    :ivar name: The name of this method.
+    :vartype name: str
+    :ivar in_args: A list of input arguments to this method.
+    :vartype in_args: list(Arg)
+    :ivar out_args: A list of output arguments to this method.
+    :vartype out_args: list(Arg)
+    :ivar in_signature: The collected signature string of the input arguments.
+    :vartype in_signature: str
+    :ivar out_signature: The collected signature string of the output arguments.
+    :vartype out_signature: str
+
+    :raises:
+        - :class:`InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the name of this method is not valid.
+    """
+
+    def __init__(self, name: str, in_args: List[Arg] = [], out_args: List[Arg] = []):
         assert_member_name_valid(name)
 
         self.name = name
@@ -96,7 +177,19 @@ class Method:
         self.in_signature = ''.join(arg.signature for arg in in_args)
         self.out_signature = ''.join(arg.signature for arg in out_args)
 
-    def from_xml(element):
+    def from_xml(element: ET.Element) -> Method:
+        """Convert an :class:`xml.etree.ElementTree.Element` to a :class:`Method`.
+
+        The element must be valid DBus introspection XML for a ``method``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+        :param is_root: Whether this is the root node
+        :type is_root: bool
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         name = element.attrib.get('name')
         if not name:
             raise InvalidIntrospectionError('interfaces must have a "name" attribute')
@@ -115,7 +208,9 @@ class Method:
 
         return Method(name, in_args, out_args)
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Method` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('method')
         element.set('name', self.name)
 
@@ -128,7 +223,26 @@ class Method:
 
 
 class Property:
-    def __init__(self, name, signature, access=PropertyAccess.READWRITE):
+    """A class that represents a DBus property exposed on an
+    :class:`Interface`.
+
+    :ivar name: The name of this property.
+    :vartype name: str
+    :ivar signature: The signature string for this property. Must be a single complete type.
+    :vartype signature: str
+    :ivar access: Whether this property is readable and writable.
+    :vartype access: :class:`PropertyAccess <dbus_next.PropertyAccess>`
+    :ivar type: The parsed type of this property.
+    :vartype type: :class:`SignatureType <dbus_next.SignatureType>`
+
+    :raises:
+        - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the property is not a single complete type.
+        - :class `InvalidSignatureError <dbus_next.InvalidSignatureError>` - If the given signature is not valid.
+        - :class: `InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the member name is not valid.
+    """
+
+    def __init__(self, name: str, signature: str,
+                 access: PropertyAccess = PropertyAccess.READWRITE):
         assert_member_name_valid(name)
 
         tree = SignatureTree(signature)
@@ -142,6 +256,16 @@ class Property:
         self.type = tree.types[0]
 
     def from_xml(element):
+        """Convert an :class:`xml.etree.ElementTree.Element` to a :class:`Property`.
+
+        The element must be valid DBus introspection XML for a ``property``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         name = element.attrib.get('name')
         signature = element.attrib.get('type')
         access = PropertyAccess(element.attrib.get('access', 'readwrite'))
@@ -153,7 +277,9 @@ class Property:
 
         return Property(name, signature, access)
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Property` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('property')
         element.set('name', self.name)
         element.set('type', self.signature)
@@ -162,7 +288,29 @@ class Property:
 
 
 class Interface:
-    def __init__(self, name, methods=None, signals=None, properties=None):
+    """A class that represents a DBus interface exported on on object path.
+
+    Contains information about the methods, signals, and properties exposed on
+    this interface.
+
+    :ivar name: The name of this interface.
+    :vartype name: str
+    :ivar methods: A list of methods exposed on this interface.
+    :vartype methods: list(:class:`Method`)
+    :ivar signals: A list of signals exposed on this interface.
+    :vartype signals: list(:class:`Signal`)
+    :ivar properties: A list of properties exposed on this interface.
+    :vartype properties: list(:class:`Property`)
+
+    :raises:
+        - :class:`InvalidInterfaceNameError <dbus_next.InvalidInterfaceNameError>` - If the name is not a valid interface name.
+    """
+
+    def __init__(self,
+                 name: str,
+                 methods: List[Method] = None,
+                 signals: List[Signal] = None,
+                 properties: List[Property] = None):
         assert_interface_name_valid(name)
 
         self.name = name
@@ -170,7 +318,19 @@ class Interface:
         self.signals = signals if signals is not None else []
         self.properties = properties if properties is not None else []
 
-    def from_xml(element):
+    @staticmethod
+    def from_xml(element: ET.Element) -> Interface:
+        """Convert a :class:`xml.etree.ElementTree.Element` into a
+        :class:`Interface`.
+
+        The element must be valid DBus introspection XML for an ``interface``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         name = element.attrib.get('name')
         if not name:
             raise InvalidIntrospectionError('interfaces must have a "name" attribute')
@@ -187,7 +347,9 @@ class Interface:
 
         return interface
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Interface` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('interface')
         element.set('name', self.name)
 
@@ -202,7 +364,33 @@ class Interface:
 
 
 class Node:
-    def __init__(self, name=None, interfaces=None, is_root=True):
+    """A class that represents a node in an object path in introspection data.
+
+    A node contains information about interfaces exported on this path and
+    child nodes. A node can be converted to and from introspection XML exposed
+    through the ``org.freedesktop.DBus.Introspectable`` standard DBus
+    interface.
+
+    This class is an essential building block for a high-level DBus interface.
+    This is the underlying data structure for the :class:`ProxyObject
+    <dbus_next.proxy_object.BaseProxyInterface>`.  A :class:`ServiceInterface
+    <dbus_next.service.ServiceInterface>` definition is converted to this class
+    to expose XML on the introspectable interface.
+
+    :ivar interfaces: A list of interfaces exposed on this node.
+    :vartype interfaces: list(:class:`Interface <dbus_next.introspection.Interface>`)
+    :ivar nodes: A list of child nodes.
+    :vartype nodes: list(:class:`Node`)
+    :ivar name: The object path of this node.
+    :vartype name: str
+    :ivar is_root: Whether this is the root node. False if it is a child node.
+    :vartype is_root: bool
+
+    :raises:
+        - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the name is not a valid node name.
+    """
+
+    def __init__(self, name: str = None, interfaces: List[Interface] = None, is_root: bool = True):
         if not is_root and not name:
             raise InvalidIntrospectionError('child nodes must have a "name" attribute')
 
@@ -211,7 +399,20 @@ class Node:
         self.name = name
         self.is_root = is_root
 
-    def from_xml(element, is_root=False):
+    @staticmethod
+    def from_xml(element: ET.Element, is_root: bool = False):
+        """Convert an :class:`xml.etree.ElementTree.Element` to a :class:`Node`.
+
+        The element must be valid DBus introspection XML for a ``node``.
+
+        :param element: The parsed XML element.
+        :type element: :class:`xml.etree.ElementTree.Element`
+        :param is_root: Whether this is the root node
+        :type is_root: bool
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the XML tree is not valid introspection data.
+        """
         node = Node(element.attrib.get('name'), is_root=is_root)
 
         for child in element:
@@ -223,7 +424,17 @@ class Node:
         return node
 
     @staticmethod
-    def parse(data):
+    def parse(data: str) -> Node:
+        """Parse XML data as a string into a :class:`Node`.
+
+        The string must be valid DBus introspection XML.
+
+        :param data: The XMl string.
+        :type data: str
+
+        :raises:
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the string is not valid introspection data.
+        """
         element = ET.fromstring(data)
         if element.tag != 'node':
             raise InvalidIntrospectionError(
@@ -231,7 +442,9 @@ class Node:
 
         return Node.from_xml(element, is_root=True)
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """Convert this :class:`Node` into an :class:`xml.etree.ElementTree.Element`.
+        """
         element = ET.Element('node')
 
         if self.name:
@@ -244,7 +457,9 @@ class Node:
 
         return element
 
-    def tostring(self):
+    def tostring(self) -> str:
+        """Convert this :class:`Node` into a DBus introspection XML string.
+        """
         header = '<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"\n"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">\n'
 
         def indent(elem, level=0):
@@ -266,7 +481,16 @@ class Node:
         indent(xml)
         return header + ET.tostring(xml, encoding='unicode').rstrip()
 
-    def default(name=None):
+    @staticmethod
+    def default(name: str = None) -> Node:
+        """Create a :class:`Node` with the default interfaces supported by this library.
+
+        The default interfaces include:
+
+        * ``org.freedesktop.DBus.Introspectable``
+        * ``org.freedesktop.DBus.Peer``
+        * ``org.freedesktop.DBus.Properties``
+        """
         return Node(name,
                     is_root=True,
                     interfaces=[
