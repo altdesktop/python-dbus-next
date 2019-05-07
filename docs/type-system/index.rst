@@ -1,6 +1,13 @@
 The Type System
 ===============
 
+.. toctree::
+   :maxdepth: 2
+
+   variant
+   signature-tree
+   signature-type
+
 Values that are sent or received over the message bus always have an
 associated signature that specifies the types of those values. For the
 high-level client and service, these signatures are specified in XML

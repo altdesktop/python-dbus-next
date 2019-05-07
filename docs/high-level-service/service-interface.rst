@@ -1,5 +1,5 @@
-Service Interface
-=================
+ServiceInterface
+================
 
 .. autoclass:: dbus_next.service.ServiceInterface
     :members:

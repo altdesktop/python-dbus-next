@@ -115,7 +115,7 @@ class BaseMessageBus:
 
         :param path: The object path to unexport.
         :type path: str
-        :param interface: The interface to unexport. If :none:`None`, unexport
+        :param interface: The interface to unexport. If ``None``, unexport
             every interface on the path.
         :type interface: :class:`ServiceInterface
             <dbus_next.service.ServiceInterface>`

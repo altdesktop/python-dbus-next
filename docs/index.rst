@@ -6,21 +6,15 @@ TODO installation and project overview
 .. module:: dbus_next
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Reference:
 
-   type-system
-   high-level-client
-   high-level-service
-   low-level
-   variant
-   message-bus
-   proxy-object
-   proxy-interface
-   service-interface
+   type-system/index.rst
+   high-level-client/index.rst
+   high-level-service/index.rst
+   low-level-interface/index.rst
+   message-bus/index.rst
    introspection
-   message
-   signature
    validators
    constants
    errors

@@ -1,9 +1,5 @@
-Signature Types
-===============
-
-.. autoclass:: dbus_next.SignatureTree
-    :members:
-    :undoc-members:
+SignatureType
+==============
 
 .. autoclass:: dbus_next.SignatureType
     :members:

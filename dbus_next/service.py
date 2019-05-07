@@ -77,6 +77,7 @@ def method(name: str = None, disabled: bool = False):
     :type disabled: bool
 
     :example:
+
     ::
 
         @method()
@@ -140,14 +141,16 @@ def signal(name: str = None, disabled: bool = False):
     annotation with a signature string of a single complete DBus type and the
     return value of the class method must conform to the dbus-next type system.
     If the signal has multiple out arguments, they must be returned within a
-    :class:`list`.
+    ``list``.
 
-    :param name: The member name that will be used for this signal. Defaults to the name of the class method.
+    :param name: The member name that will be used for this signal. Defaults to
+        the name of the class method.
     :type name: str
     :param disabled: If set to true, the signal will not be visible to clients.
     :type disabled: bool
 
     :example:
+
     ::
 
         @signal()
@@ -266,12 +269,15 @@ def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
     type system. The getter or the setter may raise a :class:`DBusError
     <dbus_next.DBusError>` to return an error to the client.
 
-    :param name: The name that DBus clients will use to interact with this property on the bus.
+    :param name: The name that DBus clients will use to interact with this
+        property on the bus.
     :type name: str
-    :param disabled: If set to true, the property will not be visible to clients.
+    :param disabled: If set to true, the property will not be visible to
+        clients.
     :type disabled: bool
 
     :example:
+
     ::
 
         @dbus_property()
@@ -309,7 +315,8 @@ class ServiceInterface:
     <dbus_next.service.signal>` decorators to mark class methods as DBus
     methods, properties, and signals respectively.
 
-    :ivar name: The name of this interface as it appears to clients. Must be a valid interface name.
+    :ivar name: The name of this interface as it appears to clients. Must be a
+        valid interface name.
     :vartype name: str
     """
 
