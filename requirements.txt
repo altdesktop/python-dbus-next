@@ -6,3 +6,4 @@ yapf
 flake8
 sphinx
 sphinxcontrib-asyncio
+sphinxcontrib-fulltoc
