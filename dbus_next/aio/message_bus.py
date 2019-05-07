@@ -1,23 +1,59 @@
+from __future__ import annotations
+
 from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
 from ..message import Message
-from ..constants import BusType, NameFlag
+from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
 from .._private.auth import auth_external, auth_parse_line, auth_begin, AuthResponse
-from ..errors import AuthError
+from ..errors import AuthError, DBusError
 from .proxy_object import ProxyObject
+from .. import introspection as intr
 
 import logging
 import asyncio
 import traceback
+from typing import Optional
 
 
 class MessageBus(BaseMessageBus):
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION):
+    """The message bus implementation for use with asyncio.
+
+    The message bus class is the entry point into all the features of the
+    library. It sets up a connection to the DBus daemon and exposes an
+    interface to send and receive messages and expose services.
+
+    You must call :func:`connect() <dbus_next.aio.MessageBus.connect>` before
+    using this message bus.
+
+    :param bus_type: The type of bus to connect to. Affects the search path for
+        the bus address.
+    :type bus_type: :class:`BusType <dbus_next.BusType>`
+    :param bus_address: A specific bus address to connect to. Should not be
+        used under normal circumstances.
+
+    :ivar unique_name: The unique name of the message bus connection. It will
+        be :class:`None` until the message bus connects.
+    :vartype unique_name: str
+    """
+
+    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
 
-    async def connect(self):
+    async def connect(self) -> MessageBus:
+        """Connect this message bus to the DBus daemon.
+
+        This method must be called before the message bus can be used.
+
+        :returns: This message bus for convenience.
+        :rtype: :class:`MessageBus <dbus_next.aio.MessageBus>`
+
+        :raises:
+            - :class:`AuthError <dbus_next.AuthError>` - If authorization to \
+              the DBus daemon failed.
+            - :class:`Exception` - If there was a connection error.
+        """
         future = self._loop.create_future()
 
         await self._loop.sock_sendall(self._sock, b'\0')
@@ -35,7 +71,9 @@ class MessageBus(BaseMessageBus):
         def on_hello(reply, err):
             if err:
                 logging.error(f'sending "Hello" message failed: {err}\n{traceback.print_exc()}')
-                self.disconnect(err)
+                self.disconnect()
+                self._finalize(err)
+                future.set_exception(err)
                 return
             self.unique_name = reply.body[0]
             for m in self._buffered_messages:
@@ -47,7 +85,11 @@ class MessageBus(BaseMessageBus):
             if err:
                 logging.error(f'adding match to "NameOwnerChanged" failed')
                 self.disconnect()
-                return
+                self._finalize(err)
+            elif reply.message_type == MessageType.ERROR:
+                logging.error(f'adding match to "NameOwnerChanged" failed')
+                self.disconnect()
+                self._finalize(DBusError._from_message(reply))
 
         hello_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',
@@ -72,7 +114,30 @@ class MessageBus(BaseMessageBus):
 
         return await future
 
-    async def introspect(self, bus_name, path):
+    async def introspect(self, bus_name: str, path: str) -> intr.Node:
+        """Get introspection data for the node at the given path from the given
+        bus name.
+
+        Calls the standard ``org.freedesktop.DBus.Introspectable.Introspect``
+        on the bus for the path.
+
+        :param bus_name: The name to introspect.
+        :type bus_name: str
+        :param path: The path to introspect.
+        :type path: str
+
+        :returns: The introspection data for the name at the path.
+        :rtype: :class:`Node <dbus_next.introspection.Node>`
+
+        :raises:
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` \
+                    - If the given object path is not valid.
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         future = self._loop.create_future()
 
         def reply_handler(reply, err):
@@ -85,7 +150,24 @@ class MessageBus(BaseMessageBus):
 
         return await future
 
-    async def request_name(self, name, flags=NameFlag.NONE):
+    async def request_name(self, name: str, flags: NameFlag = NameFlag.NONE) -> RequestNameReply:
+        """Request that this message bus owns the given name.
+
+        :param name: The name to request.
+        :type name: str
+        :param flags: Name flags that affect the behavior of the name request.
+        :type flags: :class:`NameFlag <dbus_next.NameFlag>`
+
+        :returns: The reply to the name request.
+        :rtype: :class:`RequestNameReply <dbus_next.RequestNameReply>`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         future = self._loop.create_future()
 
         def reply_handler(reply, err):
@@ -98,7 +180,22 @@ class MessageBus(BaseMessageBus):
 
         return await future
 
-    async def release_name(self, name):
+    async def release_name(self, name: str) -> ReleaseNameReply:
+        """Request that this message bus release the given name.
+
+        :param name: The name to release.
+        :type name: str
+
+        :returns: The reply to the release request.
+        :rtype: :class:`ReleaseNameReply <dbus_next.ReleaseNameReply>`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         future = self._loop.create_future()
 
         def reply_handler(reply, err):
@@ -111,7 +208,26 @@ class MessageBus(BaseMessageBus):
 
         return await future
 
-    async def call(self, msg):
+    async def call(self, msg: Message) -> Optional[Message]:
+        """Send a method call and wait for a reply from the DBus daemon.
+
+        :param msg: The method call message to send.
+        :type msg: :class:`Message <dbus_next.Message>`
+
+        :returns: A message in reply to the message sent. If the message does
+            not expect a reply based on the message flags or type, returns
+            ``None`` immediately.
+        :rtype: :class:`Message <dbus_next.Message>`
+
+        :raises:
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
+        if msg.flags & MessageFlag.NO_REPLY_EXPECTED or msg.message_type is not MessageType.METHOD_CALL:
+            self.send(msg)
+            return None
+
         future = self._loop.create_future()
 
         def reply_handler(reply, err):
@@ -126,7 +242,7 @@ class MessageBus(BaseMessageBus):
 
         return future.result()
 
-    def send(self, msg):
+    def send(self, msg: Message):
         if not msg.serial:
             msg.serial = self.next_serial()
 
@@ -136,6 +252,9 @@ class MessageBus(BaseMessageBus):
             return
 
         asyncio.ensure_future(self._loop.sock_sendall(self._sock, msg._marshall()))
+
+    def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
+        return super().get_proxy_object(bus_name, path, introspection)
 
     def _message_reader(self):
         try:

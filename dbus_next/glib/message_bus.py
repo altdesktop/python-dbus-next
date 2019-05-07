@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 from .._private.unmarshaller import Unmarshaller
 from ..constants import BusType
 from ..message import Message
-from ..constants import MessageType, MessageFlag, NameFlag
+from ..constants import MessageType, MessageFlag, NameFlag, RequestNameReply, ReleaseNameReply
 from ..message_bus import BaseMessageBus
 from .._private.auth import auth_external, auth_begin, auth_parse_line, AuthResponse
 from ..errors import AuthError
 from .proxy_object import ProxyObject
+from .. import introspection as intr
 
 import logging
 import io
+from typing import Callable, Optional
 
 # glib is optional
 _import_error = None
@@ -118,14 +122,45 @@ class _AuthLineSource(_GLibSource):
 
 
 class MessageBus(BaseMessageBus):
-    def __init__(self, bus_address=None, bus_type=BusType.SESSION):
+    """The message bus implementation for use with the GLib main loop.
+
+    The message bus class is the entry point into all the features of the
+    library. It sets up a connection to the DBus daemon and exposes an
+    interface to send and receive messages and expose services.
+
+    You must call :func:`connect() <dbus_next.glib.MessageBus.connect>` or
+    :func:`connect_sync() <dbus_next.glib.MessageBus.connect_sync>` before
+    using this message bus.
+
+    :param bus_type: The type of bus to connect to. Affects the search path for
+        the bus address.
+    :type bus_type: :class:`BusType <dbus_next.BusType>`
+    :param bus_address: A specific bus address to connect to. Should not be
+        used under normal circumstances.
+
+    :ivar unique_name: The unique name of the message bus connection. It will
+        be :class:`None` until the message bus connects.
+    :vartype unique_name: str
+    """
+
+    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
         if _import_error:
             raise _import_error
 
         super().__init__(bus_address, bus_type, ProxyObject)
         self._main_context = GLib.main_context_default()
 
-    def connect(self, connect_notify=None):
+    def connect(self, connect_notify: Callable[[MessageBus, Optional[Exception]], None] = None):
+        """Connect this message bus to the DBus daemon.
+
+        This method or the synchronous version must be called before the
+        message bus can be used.
+
+        :param connect_notify: A callback that will be called with this message
+            bus. May return an :class:`Exception` on connection errors or
+            :class:`AuthError <dbus_next.AuthError>` on authorization errors.
+        :type callback: :class:`Callable`
+        """
         self._stream.write(b'\0')
         self._stream.write(auth_external())
         self._stream.flush()
@@ -190,7 +225,20 @@ class MessageBus(BaseMessageBus):
 
         self._auth_readline(on_authline)
 
-    def connect_sync(self):
+    def connect_sync(self) -> MessageBus:
+        """Connect this message bus to the DBus daemon.
+
+        This method or the asynchronous version must be called before the
+        message bus can be used.
+
+        :returns: This message bus for convenience.
+        :rtype: :class:`MessageBus <dbus_next.glib.MessageBus>`
+
+        :raises:
+            - :class:`AuthError <dbus_next.AuthError>` - If authorization to \
+              the DBus daemon failed.
+            - :class:`Exception` - If there was a connection error.
+        """
         main = GLib.MainLoop()
         connection_error = None
 
@@ -207,9 +255,40 @@ class MessageBus(BaseMessageBus):
 
         return self
 
-    def call_sync(self, msg):
-        if msg.message_type != MessageType.METHOD_CALL:
-            raise Exception('only METHOD_CALL message types can expect a return value')
+    def call(self,
+             msg: Message,
+             reply_notify: Callable[[Optional[Message], Optional[Exception]], None] = None):
+        """Send a method call and asynchronously wait for a reply from the DBus
+        daemon.
+
+        :param msg: The method call message to send.
+        :type msg: :class:`Message <dbus_next.Message>`
+        :param reply_notify: A callback that will be called with the reply to
+            this message. May return an :class:`Exception` on connection errors.
+        :type reply_notify: Callable
+        """
+        self._call(msg, reply_notify)
+
+    def call_sync(self, msg: Message) -> Optional[Message]:
+        """Send a method call and synchronously wait for a reply from the DBus
+        daemon.
+
+        :param msg: The method call message to send.
+        :type msg: :class:`Message <dbus_next.Message>`
+
+        :returns: A message in reply to the message sent. If the message does
+            not expect a reply based on the message flags or type, returns
+            ``None`` immediately.
+        :rtype: :class:`Message <dbus_next.Message>`
+
+        :raises:
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
+        if msg.flags & MessageFlag.NO_REPLY_EXPECTED or msg.message_type is not MessageType.METHOD_CALL:
+            self.send(msg)
+            return None
 
         if not msg.serial:
             msg.serial = self.next_serial()
@@ -227,19 +306,39 @@ class MessageBus(BaseMessageBus):
 
             main.quit()
 
-        if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
-            return None
-        else:
-            self._method_return_handlers[msg.serial] = reply_handler
-            self.send(msg)
-            main.run()
+        self._method_return_handlers[msg.serial] = reply_handler
+        self.send(msg)
+        main.run()
 
-            if connection_error:
-                raise connection_error
+        if connection_error:
+            raise connection_error
 
-            return handler_reply
+        return handler_reply
 
-    def introspect_sync(self, bus_name, path):
+    def introspect_sync(self, bus_name: str, path: str) -> intr.Node:
+        """Get introspection data for the node at the given path from the given
+        bus name.
+
+        Calls the standard ``org.freedesktop.DBus.Introspectable.Introspect``
+        on the bus for the path.
+
+        :param bus_name: The name to introspect.
+        :type bus_name: str
+        :param path: The path to introspect.
+        :type path: str
+
+        :returns: The introspection data for the name at the path.
+        :rtype: :class:`Node <dbus_next.introspection.Node>`
+
+        :raises:
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` \
+                    - If the given object path is not valid.
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         main = GLib.MainLoop()
         request_result = None
         request_error = None
@@ -261,7 +360,24 @@ class MessageBus(BaseMessageBus):
 
         return request_result
 
-    def request_name_sync(self, name, flags=NameFlag.NONE):
+    def request_name_sync(self, name: str, flags: NameFlag = NameFlag.NONE) -> RequestNameReply:
+        """Request that this message bus owns the given name.
+
+        :param name: The name to request.
+        :type name: str
+        :param flags: Name flags that affect the behavior of the name request.
+        :type flags: :class:`NameFlag <dbus_next.NameFlag>`
+
+        :returns: The reply to the name request.
+        :rtype: :class:`RequestNameReply <dbus_next.RequestNameReply>`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         main = GLib.MainLoop()
         request_result = None
         request_error = None
@@ -283,7 +399,22 @@ class MessageBus(BaseMessageBus):
 
         return request_result
 
-    def release_name_sync(self, name):
+    def release_name_sync(self, name: str) -> ReleaseNameReply:
+        """Request that this message bus release the given name.
+
+        :param name: The name to release.
+        :type name: str
+
+        :returns: The reply to the release request.
+        :rtype: :class:`ReleaseNameReply <dbus_next.ReleaseNameReply>`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If \
+                  the given bus name is not valid.
+            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
+                  an error for the method call or returned an invalid result.
+            - :class:`Exception` - If a connection error occurred.
+        """
         main = GLib.MainLoop()
         release_result = None
         release_error = None
@@ -305,7 +436,7 @@ class MessageBus(BaseMessageBus):
 
         return release_result
 
-    def send(self, msg):
+    def send(self, msg: Message):
         if not msg.serial:
             msg.serial = self.next_serial()
 
@@ -314,8 +445,8 @@ class MessageBus(BaseMessageBus):
         if self.unique_name:
             self._schedule_write()
 
-    def call(self, msg, reply_notify=None):
-        self._call(msg, reply_notify)
+    def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
+        return super().get_proxy_object(bus_name, path, introspection)
 
     def _schedule_write(self):
         if self.writable_source is None or self.writable_source.is_destroyed():

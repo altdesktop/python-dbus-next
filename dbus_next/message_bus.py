@@ -14,11 +14,38 @@ import inspect
 import traceback
 import socket
 import logging
+import xml.etree.ElementTree as ET
 
 from typing import Type, Callable, Optional, Union
 
 
 class BaseMessageBus:
+    """An abstract class to manage a connection to a DBus message bus.
+
+    The message bus class is the entry point into all the features of the
+    library. It sets up a connection to the DBus daemon and exposes an
+    interface to send and receive messages and expose services.
+
+    This class is not meant to be used directly by users. For more information,
+    see the documentation for the implementation of the message bus you plan to
+    use.
+
+    :param bus_type: The type of bus to connect to. Affects the search path for
+        the bus address.
+    :type bus_type: :class:`BusType <dbus_next.BusType>`
+    :param bus_address: A specific bus address to connect to. Should not be
+        used under normal circumstances.
+    :type bus_address: str
+    :param ProxyObject: The proxy object implementation for this message bus.
+        Must be passed in by an implementation that supports the high-level client.
+    :type ProxyObject: Type[:class:`BaseProxyObject
+        <dbus_next.proxy_object.BaseProxyObject>`]
+
+    :ivar unique_name: The unique name of the message bus connection. It will
+        be :class:`None` until the message bus connects.
+    :vartype unique_name: str
+    """
+
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -46,6 +73,19 @@ class BaseMessageBus:
         self._setup_socket()
 
     def export(self, path: str, interface: ServiceInterface):
+        """Export the service interface on this message bus to make it availble
+        to other clients.
+
+        :param path: The object path to export this interface on.
+        :type path: str
+        :param interface: The service interface to export.
+        :type interface: :class:`ServiceInterface
+            <dbus_next.service.ServiceInterface>`
+
+        :raises:
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
+            - :class:`ValueError` - If the interface is already exported on this message bus
+        """
         assert_object_path_valid(path)
         if not isinstance(interface, ServiceInterface):
             raise TypeError('interface must be a ServiceInterface')
@@ -70,6 +110,19 @@ class BaseMessageBus:
         ServiceInterface._add_bus(interface, self)
 
     def unexport(self, path: str, interface: Optional[ServiceInterface] = None):
+        """Unexport the path or service interface to make it no longer
+        available to clients.
+
+        :param path: The object path to unexport.
+        :type path: str
+        :param interface: The interface to unexport. If :none:`None`, unexport
+            every interface on the path.
+        :type interface: :class:`ServiceInterface
+            <dbus_next.service.ServiceInterface>`
+
+        :raises:
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
+        """
         assert_object_path_valid(path)
         if interface and not isinstance(interface, ServiceInterface):
             raise TypeError('interface must be a ServiceInterface')
@@ -92,6 +145,24 @@ class BaseMessageBus:
 
     def introspect(self, bus_name: str, path: str,
                    callback: Callable[[Optional[intr.Node], Optional[Exception]], None]):
+        """Get introspection data for the node at the given path from the given
+        bus name.
+
+        Calls the standard ``org.freedesktop.DBus.Introspectable.Introspect``
+        on the bus for the path.
+
+        :param bus_name: The name to introspect.
+        :type bus_name: str
+        :param path: The path to introspect.
+        :type path: str
+        :param callback: A callback that will be called with the introspection
+            data as a :class:`Node <dbus_next.introspection.Node>`.
+        :type callback: :class:`Callable`
+
+        :raises:
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If the given bus name is not valid.
+        """
         BaseMessageBus._check_callback_type(callback)
 
         def reply_notify(reply, err):
@@ -115,6 +186,19 @@ class BaseMessageBus:
                      flags: NameFlag = NameFlag.NONE,
                      callback: Optional[
                          Callable[[Optional[RequestNameReply], Optional[Exception]], None]] = None):
+        """Request that this message bus owns the given name.
+
+        :param name: The name to request.
+        :type name: str
+        :param flags: Name flags that affect the behavior of the name request.
+        :type flags: :class:`NameFlag <dbus_next.NameFlag>`
+        :param callback: A callback that will be called with the reply of the
+            request as a :class:`RequestNameReply <dbus_next.RequestNameReply>`.
+        :type callback: :class:`Callable`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If the given bus name is not valid.
+        """
         assert_bus_name_valid(name)
 
         if callback is not None:
@@ -145,6 +229,18 @@ class BaseMessageBus:
                      name: str,
                      callback: Optional[
                          Callable[[Optional[ReleaseNameReply], Optional[Exception]], None]] = None):
+        """Request that this message bus release the given name.
+
+        :param name: The name to release.
+        :type name: str
+        :param callback: A callback that will be called with the reply of the
+            release request as a :class:`ReleaseNameReply
+            <dbus_next.ReleaseNameReply>`.
+        :type callback: :class:`Callable`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If the given bus name is not valid.
+        """
         assert_bus_name_valid(name)
 
         if callback is not None:
@@ -168,20 +264,58 @@ class BaseMessageBus:
                     signature='s',
                     body=[name]), reply_notify if callback else None)
 
-    def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node):
-        if not self._ProxyObject:
+    def get_proxy_object(self, bus_name: str, path: str,
+                         introspection: Union[intr.Node, str, ET.Element]) -> BaseProxyObject:
+        """Get a proxy object for the path exported on the bus that owns the
+        name. The object is expected to export the interfaces and nodes
+        specified in the introspection data.
+
+        This is the entry point into the high-level client.
+
+        :returns: A proxy object for the given path on the given name.
+        :rtype: :class:`BaseProxyObject <dbus_next.proxy_object.BaseProxyObject>`
+
+        :raises:
+            - :class:`InvalidBusNameError <dbus_next.InvalidBusNameError>` - If the given bus name is not valid.
+            - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
+            - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the introspection data for the node is not valid.
+        """
+        if self._ProxyObject is None:
             raise Exception('the message bus implementation did not provide a proxy object class')
 
         return self._ProxyObject(bus_name, path, introspection, self)
 
     def disconnect(self):
+        """Disconnect the message bus by closing the underlying connection asynchronously.
+
+        All pending  and future calls will error with a connection error.
+        """
         self._sock.shutdown(socket.SHUT_RDWR)
 
     def next_serial(self) -> int:
+        """Get the next serial for this bus. This can be used as the ``serial``
+        attribute of a :class:`Message <dbus_next.Message>` to manually handle
+        the serial of messages.
+
+        :returns: The next serial for the bus.
+        :rtype: int
+        """
         self._serial += 1
         return self._serial
 
     def add_message_handler(self, handler: Callable[[Message], Optional[Union[Message, bool]]]):
+        """Add a custom message handler for incoming messages.
+
+        The handler should be a callable that takes a :class:`Message
+        <dbus_next.Message>`. If the message is a method call, you may return
+        another Message as a reply and it will be marked as handled. You may
+        also return ``True`` to mark the message as handled without sending a
+        reply.
+
+        :param handler: A handler that will be run for every message the bus
+            connection received.
+        :type handler: :class:`Callable`
+        """
         error_text = 'a message handler must be callable with a single parameter'
         if not callable(handler):
             raise TypeError(error_text)
@@ -193,12 +327,24 @@ class BaseMessageBus:
         self._user_message_handlers.append(handler)
 
     def remove_message_handler(self, handler: Callable[[Message], Optional[Union[Message, bool]]]):
+        """Remove a message handler that was previously added by
+        :func:`add_message_handler()
+        <dbus_next.message_bus.BaseMessageBus.add_message_handler>`.
+
+        :param handler: A message handler.
+        :type handler: :class:`Callable`
+        """
         for i, h in enumerate(self._user_message_handlers):
             if h == handler:
                 del self._user_message_handlers[i]
                 break
 
     def send(self, msg: Message):
+        """Asynchronously send a message on the message bus.
+
+        :param msg: The message to send.
+        :type msg: :class:`Message <dbus_next.Message>`
+        """
         raise NotImplementedError('the "send" method must be implemented in the inheriting class')
 
     def _finalize(self, err):
