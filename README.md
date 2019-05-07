@@ -2,6 +2,8 @@
 
 The next great DBus library for Python.
 
+[Documentation](https://python-dbus-next.readthedocs.io/en/latest/).
+
 *This project is in the early stages of development and the public api is unstable*
 
 python-dbus-next is a Python library for DBus that aims to be a fully featured high level library primarily geared towards integration of applications into Linux desktop and mobile environments.
@@ -19,6 +21,14 @@ python-dbus-next plans to improve over other DBus libraries for Python in the fo
 * Complete implementation of the DBus type system without ever guessing types.
 * Integration tests for all features of the library.
 * Completely documented public API.
+
+## Installing
+
+This library is available on PyPi as [dbus-next](https://pypi.org/project/dbus-next/).
+
+```
+pip3 install dbus-next
+```
 
 ## The Client Interface
 
