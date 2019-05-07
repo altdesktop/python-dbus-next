@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 
 from dbus_next import Message, MessageType
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 
 import asyncio
 import json
@@ -13,7 +13,7 @@ loop = asyncio.get_event_loop()
 
 
 async def main():
-    bus = await session_bus()
+    bus = await MessageBus().connect()
 
     reply = await bus.call(
         Message(destination='org.freedesktop.DBus',

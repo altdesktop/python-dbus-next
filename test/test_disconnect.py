@@ -1,4 +1,4 @@
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 from dbus_next import Message
 
 import pytest
@@ -9,7 +9,7 @@ async def test_bus_disconnect_before_reply(event_loop):
     '''In this test, the bus disconnects before the reply comes in. Make sure
     the caller receives a reply with the error instead of hanging.'''
 
-    bus = await session_bus()
+    bus = await MessageBus().connect()
 
     ping = bus.call(
         Message(destination='org.freedesktop.DBus',

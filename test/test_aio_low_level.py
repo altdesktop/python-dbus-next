@@ -1,4 +1,4 @@
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageType, MessageFlag
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_standard_interfaces():
-    bus = await session_bus()
+    bus = await MessageBus().connect()
     msg = Message(destination='org.freedesktop.DBus',
                   path='/org/freedesktop/DBus',
                   interface='org.freedesktop.DBus',
@@ -42,8 +42,8 @@ async def test_standard_interfaces():
 
 @pytest.mark.asyncio
 async def test_sending_messages_between_buses():
-    bus1 = await session_bus()
-    bus2 = await session_bus()
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
 
     msg = Message(destination=bus1.unique_name,
                   path='/org/test/path',
@@ -102,8 +102,8 @@ async def test_sending_messages_between_buses():
 
 @pytest.mark.asyncio
 async def test_sending_signals_between_buses(event_loop):
-    bus1 = await session_bus()
-    bus2 = await session_bus()
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
 
     add_match_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',

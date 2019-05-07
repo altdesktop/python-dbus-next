@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 
 import asyncio
 
@@ -11,7 +11,7 @@ loop = asyncio.get_event_loop()
 
 
 async def main():
-    bus = await session_bus()
+    bus = await MessageBus().connect()
     # the introspection xml would normally be included in your project, but
     # this is convenient for development
     introspection = await bus.introspect('org.mpris.MediaPlayer2.vlc', '/org/mpris/MediaPlayer2')

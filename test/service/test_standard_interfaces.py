@@ -1,5 +1,5 @@
 from dbus_next.service import ServiceInterface
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageType, introspection as intr
 
 import pytest
@@ -18,7 +18,7 @@ async def test_export_unexport():
     interface2 = ExampleInterface('test.interface2')
     export_path = '/test/path'
     export_path2 = '/test/path/child'
-    bus = await session_bus()
+    bus = await MessageBus().connect()
     bus.export(export_path, interface)
     assert export_path in bus._path_exports
     assert len(bus._path_exports[export_path]) == 1
@@ -47,8 +47,8 @@ async def test_export_unexport():
 
 @pytest.mark.asyncio
 async def test_introspectable_interface():
-    bus1 = await session_bus()
-    bus2 = await session_bus()
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
 
     interface = ExampleInterface('test.interface')
     interface2 = ExampleInterface('test.interface2')
@@ -86,8 +86,8 @@ async def test_introspectable_interface():
 
 @pytest.mark.asyncio
 async def test_peer_interface():
-    bus1 = await session_bus()
-    bus2 = await session_bus()
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
 
     reply = await bus2.call(
         Message(destination=bus1.unique_name,

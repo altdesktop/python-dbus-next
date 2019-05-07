@@ -10,8 +10,8 @@ has_gi = check_gi_repository()
 async def test_name_requests():
     test_name = 'aio.test.request.name'
 
-    bus1 = await aio.session_bus()
-    bus2 = await aio.session_bus()
+    bus1 = await aio.MessageBus().connect()
+    bus2 = await aio.MessageBus().connect()
 
     async def get_name_owner(name):
         reply = await bus1.call(
@@ -58,7 +58,7 @@ async def test_name_requests():
 @pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_request_name_glib():
     test_name = 'glib.test.request.name'
-    bus = glib.session_bus_sync()
+    bus = glib.MessageBus().connect_sync()
 
     reply = bus.request_name_sync(test_name)
     assert reply == RequestNameReply.PRIMARY_OWNER

@@ -4,14 +4,14 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 
 from dbus_next import Message
-from dbus_next.glib import session_bus_sync
+from dbus_next.glib import MessageBus
 
 import json
 import signal
 from gi.repository import GLib
 
 main = GLib.MainLoop()
-bus = session_bus_sync()
+bus = MessageBus().connect_sync()
 
 
 def reply_handler(reply, err):

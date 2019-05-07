@@ -1,4 +1,4 @@
-from dbus_next.glib import session_bus_sync
+from dbus_next.glib import MessageBus
 from dbus_next import Message, MessageType, MessageFlag
 from test.util import check_gi_repository, skip_reason_no_gi
 
@@ -12,7 +12,7 @@ if has_gi:
 
 @pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_standard_interfaces():
-    bus = session_bus_sync()
+    bus = MessageBus().connect_sync()
     msg = Message(destination='org.freedesktop.DBus',
                   path='/org/freedesktop/DBus',
                   interface='org.freedesktop.DBus',
@@ -48,8 +48,8 @@ def test_standard_interfaces():
 
 @pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_sending_messages_between_buses():
-    bus1 = session_bus_sync()
-    bus2 = session_bus_sync()
+    bus1 = MessageBus().connect_sync()
+    bus2 = MessageBus().connect_sync()
 
     msg = Message(destination=bus1.unique_name,
                   path='/org/test/path',
@@ -108,8 +108,8 @@ def test_sending_messages_between_buses():
 
 @pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
 def test_sending_signals_between_buses():
-    bus1 = session_bus_sync()
-    bus2 = session_bus_sync()
+    bus1 = MessageBus().connect_sync()
+    bus2 = MessageBus().connect_sync()
 
     add_match_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',

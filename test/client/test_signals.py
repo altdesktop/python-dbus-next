@@ -1,5 +1,5 @@
 from dbus_next.service import ServiceInterface, signal
-from dbus_next.aio import session_bus
+from dbus_next.aio import MessageBus
 from dbus_next import Message
 
 import pytest
@@ -20,8 +20,8 @@ class ExampleInterface(ServiceInterface):
 
 @pytest.mark.asyncio
 async def test_signals():
-    bus1 = await session_bus()
-    bus2 = await session_bus()
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
 
     await bus1.request_name('test.signals.name')
     service_interface = ExampleInterface()
@@ -79,7 +79,7 @@ async def test_signals():
     # special case: another bus with the same path and interface but on a
     # different name and connection will trigger the match rule of the first
     # (happens with mpris)
-    bus3 = await session_bus()
+    bus3 = await MessageBus().connect()
     await bus3.request_name('test.signals.name2')
     service_interface2 = ExampleInterface()
     bus3.export('/test/path', service_interface2)
