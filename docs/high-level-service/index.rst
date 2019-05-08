@@ -24,7 +24,7 @@ After the service interface is defined, call :func:`MessageBus.export() <dbus_ne
 
 :example:
 
-.. code-block:: python
+.. code-block:: python3
 
     from dbus_next.aio import MessageBus
     from dbus_next.service import (ServiceInterface,

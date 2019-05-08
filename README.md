@@ -32,7 +32,13 @@ pip3 install dbus-next
 
 ## The Client Interface
 
-*The client interface is unstable*
+*The client interface is somewhat stable*
+
+To use a service on the bus, the library constructs a proxy object you can use to call methods, get and set properties, and listen to signals.
+
+For more information, see the [overview for the high-level client](https://python-dbus-next.readthedocs.io/en/latest/high-level-client/index.html).
+
+This example connects to a media player and controls it with the [MPRIS](https://specifications.freedesktop.org/mpris-spec/latest/) DBus interface.
 
 ```python
 from dbus_next.aio import MessageBus
@@ -74,7 +80,11 @@ loop.run_until_complete(main())
 
 ## The Service Interface
 
-*The service interface is unstable*
+*The service interface is somewhat stable*
+
+To define a service on the bus, use the `ServiceInterface` class and decorate class methods to specify DBus methods, properties, and signals with their type signatures.
+
+For more information, see the [overview for the high-level service](https://python-dbus-next.readthedocs.io/en/latest/high-level-service/index.html).
 
 ```python
 from dbus_next import ServiceInterface, method, dbus_property, signal, Variant
@@ -90,10 +100,6 @@ class ExampleInterface(ServiceInterface):
     @method()
     def Echo(self, what: 's') -> 's':
         return what
-
-    @method()
-    def EchoMultiple(self, what1: 's', what2: 's') -> 'ss':
-        return [what1, what2]
 
     @method()
     def GetVariantDict() -> 'a{sv}':
@@ -115,10 +121,6 @@ class ExampleInterface(ServiceInterface):
     def signal_simple(self) -> 's':
         return 'hello'
 
-    @signal()
-    def signal_multiple(self) -> 'ss':
-        return ['hello', 'world']
-
 async def main():
     bus = await MessageBus().connect()
     await bus.request_name('test.name')
@@ -131,7 +133,11 @@ asyncio.get_event_loop().run_until_complete(main())
 
 ## The Low-Level Interface
 
-*The low-level interface is unstable*
+*The low-level interface is somewhat stable*
+
+The low-level interface works with DBus messages directly.
+
+For more information, see the [overview for the low-level interface](https://python-dbus-next.readthedocs.io/en/latest/low-level-interface/index.html).
 
 ```python
 from dbus_next.message import Message, MessageType
@@ -165,10 +171,7 @@ loop.run_until_complete(main())
 
 Contributions are welcome. Development happens on [Github](https://github.com/acrisci/python-dbus-next).
 
-### TODO
-
-* properties cache
-* documentation
+Before you commit, run `make` to run the linter, code formatter, and the test suite.
 
 # Copyright
 
