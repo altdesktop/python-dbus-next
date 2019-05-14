@@ -167,6 +167,11 @@ async def main():
 loop.run_until_complete(main())
 ```
 
+## Projects that use python-dbus-next
+
+* The [Playerctl](https://github.com/acrisci/playerctl) test suite
+* [i3-dstatus](https://github.com/acrisci/i3-dstatus)
+
 ## Contributing
 
 Contributions are welcome. Development happens on [Github](https://github.com/acrisci/python-dbus-next).
