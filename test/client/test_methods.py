@@ -17,6 +17,10 @@ class ExampleInterface(ServiceInterface):
         pass
 
     @method()
+    def EchoInt64(self, what: 'x') -> 'x':
+        return what
+
+    @method()
     def EchoString(self, what: 's') -> 's':
         return what
 
@@ -67,6 +71,9 @@ async def test_aio_proxy_object():
 
     result = await interface.call_echo_three('hello', 'there', 'world')
     assert result == ['hello', 'there', 'world']
+
+    result = await interface.call_echo_int64(-10000)
+    assert result == -10000
 
     with pytest.raises(DBusError):
         try:

@@ -1,5 +1,5 @@
 from dbus_next import aio, glib, Message, DBusError
-from dbus_next.service import ServiceInterface, dbus_property
+from dbus_next.service import ServiceInterface, dbus_property, PropertyAccess
 from test.util import check_gi_repository, skip_reason_no_gi
 
 import pytest
@@ -13,6 +13,7 @@ class ExampleInterface(ServiceInterface):
         self._some_property = 'foo'
         self.error_name = 'test.error'
         self.error_text = 'i am bad'
+        self._int64_property = -10000
 
     @dbus_property()
     def SomeProperty(self) -> 's':
@@ -21,6 +22,10 @@ class ExampleInterface(ServiceInterface):
     @SomeProperty.setter
     def SomeProperty(self, val: 's'):
         self._some_property = val
+
+    @dbus_property(access=PropertyAccess.READ)
+    def Int64Property(self) -> 'x':
+        return self._int64_property
 
     @dbus_property()
     def ErrorThrowingProperty(self) -> 's':
@@ -44,6 +49,9 @@ async def test_aio_properties():
 
     prop = await interface.get_some_property()
     assert prop == service_interface._some_property
+
+    prop = await interface.get_int64_property()
+    assert prop == service_interface._int64_property
 
     await interface.set_some_property('different')
     assert service_interface._some_property == 'different'
