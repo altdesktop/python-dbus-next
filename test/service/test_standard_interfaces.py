@@ -13,39 +13,6 @@ class ExampleInterface(ServiceInterface):
 
 
 @pytest.mark.asyncio
-async def test_export_unexport():
-    interface = ExampleInterface('test.interface')
-    interface2 = ExampleInterface('test.interface2')
-    export_path = '/test/path'
-    export_path2 = '/test/path/child'
-    bus = await MessageBus().connect()
-    bus.export(export_path, interface)
-    assert export_path in bus._path_exports
-    assert len(bus._path_exports[export_path]) == 1
-    assert bus._path_exports[export_path][0] is interface
-    bus.export(export_path2, interface2)
-
-    node = bus._introspect_export_path(export_path)
-    assert len(node.interfaces) == standard_interfaces_count + 1
-    assert len(node.nodes) == 1
-    # relative path
-    assert node.nodes[0].name == 'child'
-
-    bus.unexport(export_path, interface)
-    assert export_path not in bus._path_exports
-
-    bus.export(export_path2, interface)
-    assert len(bus._path_exports[export_path2]) == 2
-    bus.unexport(export_path2)
-    assert not bus._path_exports
-
-    node = bus._introspect_export_path('/path/doesnt/exist')
-    assert type(node) is intr.Node
-    assert not node.interfaces
-    assert not node.nodes
-
-
-@pytest.mark.asyncio
 async def test_introspectable_interface():
     bus1 = await MessageBus().connect()
     bus2 = await MessageBus().connect()

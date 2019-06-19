@@ -73,7 +73,7 @@ class BaseMessageBus:
         self._setup_socket()
 
     def export(self, path: str, interface: ServiceInterface):
-        """Export the service interface on this message bus to make it availble
+        """Export the service interface on this message bus to make it available
         to other clients.
 
         :param path: The object path to export this interface on.
@@ -84,7 +84,7 @@ class BaseMessageBus:
 
         :raises:
             - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
-            - :class:`ValueError` - If the interface is already exported on this message bus
+            - :class:`ValueError` - If an interface with this name is already exported on the message bus at this path
         """
         assert_object_path_valid(path)
         if not isinstance(interface, ServiceInterface):
@@ -99,48 +99,50 @@ class BaseMessageBus:
                     f'An interface with this name is already exported on this bus at path "{path}": "{interface.name}"'
                 )
 
-        for path, ifaces in self._path_exports.items():
-            for i in ifaces:
-                if i is interface:
-                    raise ValueError(
-                        f'This interface is already exported on this bus at path "{path}": "{interface.name}"'
-                    )
-
         self._path_exports[path].append(interface)
         ServiceInterface._add_bus(interface, self)
 
-    def unexport(self, path: str, interface: Optional[ServiceInterface] = None):
+    def unexport(self, path: str, interface: Optional[Union[ServiceInterface, str]] = None):
         """Unexport the path or service interface to make it no longer
         available to clients.
 
         :param path: The object path to unexport.
         :type path: str
-        :param interface: The interface to unexport. If ``None``, unexport
-            every interface on the path.
+        :param interface: The interface instance or the name of the interface
+            to unexport. If ``None``, unexport every interface on the path.
         :type interface: :class:`ServiceInterface
-            <dbus_next.service.ServiceInterface>`
+            <dbus_next.service.ServiceInterface>` or str or None
 
         :raises:
             - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
         """
         assert_object_path_valid(path)
-        if interface and not isinstance(interface, ServiceInterface):
-            raise TypeError('interface must be a ServiceInterface')
+        if type(interface) not in [str, type(None)] and not isinstance(interface, ServiceInterface):
+            raise TypeError('interface must be a ServiceInterface or interface name')
 
         if path not in self._path_exports:
             return
 
+        exports = self._path_exports[path]
+
+        if type(interface) is str:
+            try:
+                interface = next(iface for iface in exports if iface.name == interface)
+            except StopIteration:
+                return
+
         if interface is None:
-            for iface in self._path_exports[path]:
-                ServiceInterface._remove_bus(iface, self)
             del self._path_exports[path]
+            for iface in filter(lambda e: not self._has_interface(e), exports):
+                ServiceInterface._remove_bus(iface, self)
         else:
-            for i, iface in enumerate(self._path_exports[path]):
+            for i, iface in enumerate(exports):
                 if iface is interface:
-                    ServiceInterface._remove_bus(iface, self)
                     del self._path_exports[path][i]
                     if not self._path_exports[path]:
                         del self._path_exports[path]
+                    if not self._has_interface(iface):
+                        ServiceInterface._remove_bus(iface, self)
                     break
 
     def introspect(self, bus_name: str, path: str,
@@ -272,6 +274,14 @@ class BaseMessageBus:
 
         This is the entry point into the high-level client.
 
+        :param bus_name: The name on the bus to get the proxy object for.
+        :type bus_name: str
+        :param path: The path on the client for the proxy object.
+        :type path: str
+        :param introspection: XML introspection data used to build the
+            interfaces on the proxy object.
+        :type introspection: :class:`Node <dbus_next.introspection.Node>` or str or :class:`ElementTree`
+
         :returns: A proxy object for the given path on the given name.
         :rtype: :class:`BaseProxyObject <dbus_next.proxy_object.BaseProxyObject>`
 
@@ -314,7 +324,7 @@ class BaseMessageBus:
 
         :param handler: A handler that will be run for every message the bus
             connection received.
-        :type handler: :class:`Callable`
+        :type handler: :class:`Callable` or None
         """
         error_text = 'a message handler must be callable with a single parameter'
         if not callable(handler):
@@ -362,6 +372,14 @@ class BaseMessageBus:
             self.unexport(path)
 
         self._disconnected = True
+
+    def _has_interface(self, interface: ServiceInterface) -> bool:
+        for _, exports in self._path_exports.items():
+            for iface in exports:
+                if iface is interface:
+                    return True
+
+        return False
 
     def _interface_signal_notify(self, interface, interface_name, member, signature, body):
         path = None
