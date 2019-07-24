@@ -114,7 +114,7 @@ class MessageBus(BaseMessageBus):
 
         return await future
 
-    async def introspect(self, bus_name: str, path: str) -> intr.Node:
+    async def introspect(self, bus_name: str, path: str, timeout: float = 30.0) -> intr.Node:
         """Get introspection data for the node at the given path from the given
         bus name.
 
@@ -125,6 +125,8 @@ class MessageBus(BaseMessageBus):
         :type bus_name: str
         :param path: The path to introspect.
         :type path: str
+        :param timeout: The timeout to introspect.
+        :type timeout: float
 
         :returns: The introspection data for the name at the path.
         :rtype: :class:`Node <dbus_next.introspection.Node>`
@@ -137,6 +139,7 @@ class MessageBus(BaseMessageBus):
             - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
                   an error for the method call or returned an invalid result.
             - :class:`Exception` - If a connection error occurred.
+            - :class:`asyncio.TimeoutError` - Waited for future but time run out.
         """
         future = self._loop.create_future()
 
@@ -148,7 +151,7 @@ class MessageBus(BaseMessageBus):
 
         super().introspect(bus_name, path, reply_handler)
 
-        return await future
+        return await asyncio.wait_for(future, timeout=timeout)
 
     async def request_name(self, name: str, flags: NameFlag = NameFlag.NONE) -> RequestNameReply:
         """Request that this message bus owns the given name.
