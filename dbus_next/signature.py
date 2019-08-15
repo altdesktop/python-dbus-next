@@ -20,7 +20,7 @@ class SignatureType:
     structs have child types equal to the number of struct members.
     :vartype children: list(:class:`SignatureType`)
     """
-    _tokens = 'ybnqiuxtdsogav({'
+    _tokens = 'ybnqiuxtdsogavh({'
 
     def __init__(self, token):
         self.token = token
