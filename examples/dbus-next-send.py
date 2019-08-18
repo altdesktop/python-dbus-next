@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/..'))
 from dbus_next.validators import (is_bus_name_valid, is_member_name_valid, is_object_path_valid,
                                   is_interface_name_valid)
 from dbus_next.aio import MessageBus
-from dbus_next import MessageType, SignatureTree, BusType, Message, Variant
+from dbus_next import MessageType, BusType, Message, Variant
 from argparse import ArgumentParser, OPTIONAL
 import json
 
