@@ -1,54 +1,58 @@
 from __future__ import annotations
 
 
-class SignatureBodyMismatchError(ValueError):
+class DBusException(Exception):
     pass
 
 
-class InvalidSignatureError(ValueError):
+class SignatureBodyMismatchError(DBusException, ValueError):
     pass
 
 
-class InvalidAddressError(ValueError):
+class InvalidSignatureError(DBusException, ValueError):
     pass
 
 
-class AuthError(Exception):
+class InvalidAddressError(DBusException, ValueError):
     pass
 
 
-class InvalidMessageError(ValueError):
+class AuthError(DBusException):
     pass
 
 
-class InvalidIntrospectionError(ValueError):
+class InvalidMessageError(DBusException, ValueError):
     pass
 
 
-class InterfaceNotFoundError(Exception):
+class InvalidIntrospectionError(DBusException, ValueError):
     pass
 
 
-class SignalDisabledError(Exception):
+class InterfaceNotFoundError(DBusException):
     pass
 
 
-class InvalidBusNameError(TypeError):
+class SignalDisabledError(DBusException):
+    pass
+
+
+class InvalidBusNameError(DBusException, TypeError):
     def __init__(self, name):
         super().__init__(f'invalid bus name: {name}')
 
 
-class InvalidObjectPathError(TypeError):
+class InvalidObjectPathError(DBusException, TypeError):
     def __init__(self, path):
         super().__init__(f'invalid object path: {path}')
 
 
-class InvalidInterfaceNameError(TypeError):
+class InvalidInterfaceNameError(DBusException, TypeError):
     def __init__(self, name):
         super().__init__(f'invalid interface name: {name}')
 
 
-class InvalidMemberNameError(TypeError):
+class InvalidMemberNameError(DBusException, TypeError):
     def __init__(self, member):
         super().__init__(f'invalid member name: {member}')
 
@@ -58,7 +62,7 @@ from .validators import assert_interface_name_valid
 from .constants import ErrorType, MessageType
 
 
-class DBusError(Exception):
+class DBusError(DBusException):
     def __init__(self, type_, text, reply=None):
         super().__init__(text)
 
