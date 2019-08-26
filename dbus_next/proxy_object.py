@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from . import message_bus
 from .message import Message
@@ -108,7 +106,7 @@ class BaseProxyObject:
     """
 
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
-                 bus: message_bus.BaseMessageBus, ProxyInterface: Type[BaseProxyInterface]):
+                 bus: 'message_bus.BaseMessageBus', ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)
         assert_bus_name_valid(bus_name)
 
@@ -222,7 +220,7 @@ class BaseProxyObject:
         self._interfaces[name] = interface
         return interface
 
-    def get_children(self) -> List[BaseProxyObject]:
+    def get_children(self) -> List['BaseProxyObject']:
         """Get the child nodes of this proxy object according to the introspection data."""
         if self._children is None:
             self._children = [

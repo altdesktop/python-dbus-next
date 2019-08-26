@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr

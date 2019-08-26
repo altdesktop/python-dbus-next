@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from .errors import InvalidBusNameError, InvalidObjectPathError, InvalidInterfaceNameError, InvalidMemberNameError
 

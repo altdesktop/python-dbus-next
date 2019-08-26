@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ._private.address import get_bus_address, parse_address
 from .message import Message
 from .constants import BusType, MessageFlag, MessageType, ErrorType, NameFlag, RequestNameReply, ReleaseNameReply

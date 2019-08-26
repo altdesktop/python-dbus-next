@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .constants import PropertyAccess, ArgDirection
 from .signature import SignatureTree, SignatureType
 from .validators import assert_member_name_valid, assert_interface_name_valid
@@ -54,7 +52,7 @@ class Arg:
         self.name = name
         self.direction = direction
 
-    def from_xml(element: ET.Element, direction: ArgDirection) -> Arg:
+    def from_xml(element: ET.Element, direction: ArgDirection) -> 'Arg':
         """Convert a :class:`xml.etree.ElementTree.Element` into a
         :class:`Arg`.
 
@@ -177,7 +175,7 @@ class Method:
         self.in_signature = ''.join(arg.signature for arg in in_args)
         self.out_signature = ''.join(arg.signature for arg in out_args)
 
-    def from_xml(element: ET.Element) -> Method:
+    def from_xml(element: ET.Element) -> 'Method':
         """Convert an :class:`xml.etree.ElementTree.Element` to a :class:`Method`.
 
         The element must be valid DBus introspection XML for a ``method``.
@@ -319,7 +317,7 @@ class Interface:
         self.properties = properties if properties is not None else []
 
     @staticmethod
-    def from_xml(element: ET.Element) -> Interface:
+    def from_xml(element: ET.Element) -> 'Interface':
         """Convert a :class:`xml.etree.ElementTree.Element` into a
         :class:`Interface`.
 
@@ -424,7 +422,7 @@ class Node:
         return node
 
     @staticmethod
-    def parse(data: str) -> Node:
+    def parse(data: str) -> 'Node':
         """Parse XML data as a string into a :class:`Node`.
 
         The string must be valid DBus introspection XML.
@@ -482,7 +480,7 @@ class Node:
         return header + ET.tostring(xml, encoding='unicode').rstrip()
 
     @staticmethod
-    def default(name: str = None) -> Node:
+    def default(name: str = None) -> 'Node':
         """Create a :class:`Node` with the default interfaces supported by this library.
 
         The default interfaces include:

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
 from ..message import Message
@@ -41,7 +39,7 @@ class MessageBus(BaseMessageBus):
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
 
-    async def connect(self) -> MessageBus:
+    async def connect(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
 
         This method must be called before the message bus can be used.

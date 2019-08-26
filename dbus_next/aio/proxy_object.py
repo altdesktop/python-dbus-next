@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
 from ..message import Message
@@ -138,5 +136,5 @@ class ProxyObject(BaseProxyObject):
     def get_interface(self, name: str) -> ProxyInterface:
         return super().get_interface(name)
 
-    def get_children(self) -> List[ProxyObject]:
+    def get_children(self) -> List['ProxyObject']:
         return super().get_children()

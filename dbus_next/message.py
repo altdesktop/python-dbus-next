@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ._private.marshaller import Marshaller
 from .constants import MessageType, MessageFlag, ErrorType
 from ._private.constants import PROTOCOL_VERSION, HeaderField, LITTLE_ENDIAN
@@ -115,7 +113,7 @@ class Message:
             raise InvalidMessageError(f'got unknown message type: {self.message_type}')
 
     @staticmethod
-    def new_error(msg: Message, error_name: str, error_text: str) -> Message:
+    def new_error(msg: 'Message', error_name: str, error_text: str) -> 'Message':
         """A convenience constructor to create an error message in reply to the given message.
 
         :param msg: The message this error is in reply to.
@@ -138,7 +136,7 @@ class Message:
                        body=[error_text])
 
     @staticmethod
-    def new_method_return(msg: Message, signature: str = '', body: List[Any] = []) -> Message:
+    def new_method_return(msg: 'Message', signature: str = '', body: List[Any] = []) -> 'Message':
         """A convenience constructor to create a method return to the given method call message.
 
         :param msg: The method call message this is a reply to.
@@ -165,7 +163,7 @@ class Message:
                    interface: str,
                    member: str,
                    signature: str = '',
-                   body: List[Any] = None) -> Message:
+                   body: List[Any] = None) -> 'Message':
         """A convenience constructor to create a new signal message.
 
         :param path: The path of this signal.

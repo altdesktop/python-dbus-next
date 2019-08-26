@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .._private.unmarshaller import Unmarshaller
 from ..constants import BusType
 from ..message import Message
@@ -150,7 +148,7 @@ class MessageBus(BaseMessageBus):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._main_context = GLib.main_context_default()
 
-    def connect(self, connect_notify: Callable[[MessageBus, Optional[Exception]], None] = None):
+    def connect(self, connect_notify: Callable[['MessageBus', Optional[Exception]], None] = None):
         """Connect this message bus to the DBus daemon.
 
         This method or the synchronous version must be called before the
@@ -225,7 +223,7 @@ class MessageBus(BaseMessageBus):
 
         self._auth_readline(on_authline)
 
-    def connect_sync(self) -> MessageBus:
+    def connect_sync(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
 
         This method or the asynchronous version must be called before the
