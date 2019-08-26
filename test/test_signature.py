@@ -1,4 +1,6 @@
-from dbus_next import SignatureTree
+from dbus_next import SignatureTree, SignatureBodyMismatchError
+
+import pytest
 
 
 def assert_simple_type(signature, type_):
@@ -145,3 +147,38 @@ def test_dict_of_structs():
     assert len(struct_child.children) == 2
     for i in range(0, 2):
         assert_simple_type('s', struct_child.children[i])
+
+
+def test_invalid_variants():
+    tree = SignatureTree('a{sa{sv}}')
+    s_con = {
+        'type': '802-11-wireless',
+        'uuid': '1234',
+        'id': 'SSID',
+    }
+
+    s_wifi = {
+        'ssid': 'SSID',
+        'mode': 'infrastructure',
+        'hidden': True,
+    }
+
+    s_wsec = {
+        'key-mgmt': 'wpa-psk',
+        'auth-alg': 'open',
+        'psk': 'PASSWORD',
+    }
+
+    s_ip4 = {'method': 'auto'}
+    s_ip6 = {'method': 'auto'}
+
+    con = {
+        'connection': s_con,
+        '802-11-wireless': s_wifi,
+        '802-11-wireless-security': s_wsec,
+        'ipv4': s_ip4,
+        'ipv6': s_ip6
+    }
+
+    with pytest.raises(SignatureBodyMismatchError):
+        tree.verify([con])

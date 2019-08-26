@@ -225,7 +225,6 @@ class SignatureType:
             self.children[i].verify(member)
 
     def _verify_variant(self, body):
-        return
         # a variant signature and value is valid by construction
         if not isinstance(body, Variant):
             raise SignatureBodyMismatchError('DBus VARIANT type "v" must be Python type "Variant"')
