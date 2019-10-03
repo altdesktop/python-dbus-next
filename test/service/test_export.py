@@ -94,3 +94,20 @@ async def test_export_alias():
                 member='some_method'))
     assert result.message_type is MessageType.METHOD_RETURN, result.body[0]
     assert interface._method_called
+
+
+@pytest.mark.asyncio
+async def test_export_introspection():
+    interface = ExampleInterface('test.interface')
+    interface2 = ExampleInterface('test.interface2')
+
+    export_path = '/test/path'
+    export_path2 = '/test/path/child'
+
+    bus = await MessageBus().connect()
+    bus.export(export_path, interface)
+    bus.export(export_path2, interface2)
+
+    root = bus._introspect_export_path('/')
+    assert len(root.nodes) == 1
+
