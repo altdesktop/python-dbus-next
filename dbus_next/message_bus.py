@@ -399,25 +399,27 @@ class BaseMessageBus:
     def _introspect_export_path(self, path):
         assert_object_path_valid(path)
 
-        node = None
         if path in self._path_exports:
             node = intr.Node.default(path)
-            [
+            for interface in self._path_exports[path]:
                 node.interfaces.append(interface.introspect())
-                for interface in self._path_exports[path]
-            ]
         else:
             node = intr.Node(path)
 
-        path_split = [path for path in path.split('/') if path]
+        children = set()
 
-        for export_path in self._path_exports.keys():
-            export_path_split = [path for path in export_path.split('/') if path]
-            if len(export_path_split) <= len(path_split):
+        for export_path in self._path_exports:
+            try:
+                child_path = export_path.split(path, maxsplit=1)[1]
+            except IndexError:
                 continue
-            if all(path == export_path_split[i] for i, path in enumerate(path_split)):
-                child = intr.Node(export_path_split[len(path_split)])
-                node.nodes.append(child)
+
+            child_path = child_path.lstrip('/')
+            child_name = child_path.split('/', maxsplit=1)[0]
+
+            children.add(child_name)
+
+        node.nodes = [intr.Node(name) for name in children if name]
 
         return node
 
