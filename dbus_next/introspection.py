@@ -488,6 +488,7 @@ class Node:
         * ``org.freedesktop.DBus.Introspectable``
         * ``org.freedesktop.DBus.Peer``
         * ``org.freedesktop.DBus.Properties``
+        * ``org.freedesktop.DBus.ObjectManager``
         """
         return Node(name,
                     is_root=True,
@@ -530,5 +531,23 @@ class Node:
                                                  Arg('as', ArgDirection.OUT,
                                                      'invalidated_properties')
                                              ])
-                                  ])
+                                  ]),
+                        Interface('org.freedesktop.DBus.ObjectManager',
+                                  methods=[
+                                      Method('GetManagedObjects',
+                                             out_args=[Arg('a{oa{sa{sv}}}', ArgDirection.OUT,
+                                                           'objpath_interfaces_and_properties')]),
+                                  ],
+                                  signals=[
+                                      Signal('InterfacesAdded',
+                                             args=[
+                                                 Arg('o', ArgDirection.OUT, 'object_path'),
+                                                 Arg('a{sa{sv}}', ArgDirection.OUT, 'interfaces_and_properties'),
+                                             ]),
+                                      Signal('InterfacesRemoved',
+                                             args=[
+                                                 Arg('o', ArgDirection.OUT, 'object_path'),
+                                                 Arg('as', ArgDirection.OUT, 'interfaces'),
+                                             ])
+                                  ]),
                     ])
