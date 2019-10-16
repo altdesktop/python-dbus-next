@@ -644,7 +644,7 @@ class BaseMessageBus:
         result = {}
 
         for node in self._path_exports:
-            if not node.startswith(msg.path):
+            if not node.startswith(msg.path+'/') and msg.path is not '/':
                 continue
 
             result[node] = {}
