@@ -43,7 +43,6 @@ class BaseMessageBus:
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -586,7 +585,8 @@ class BaseMessageBus:
                 handler = self._default_ping_handler
             elif msg._matches(member='GetMachineId', signature=''):
                 handler = self._default_get_machine_id_handler
-        elif msg._matches(interface='org.freedesktop.DBus.ObjectManager', member='GetManagedObjects'):
+        elif msg._matches(interface='org.freedesktop.DBus.ObjectManager',
+                          member='GetManagedObjects'):
             handler = self._default_object_manager
 
         else:
@@ -639,7 +639,7 @@ class BaseMessageBus:
         result = {}
 
         for node in self._path_exports:
-            if not node.startswith(msg.path+'/') and msg.path is not '/':
+            if not node.startswith(msg.path + '/') and msg.path != '/':
                 continue
 
             result[node] = {}
@@ -712,7 +712,7 @@ class BaseMessageBus:
         for prop in ServiceInterface._get_properties(interface):
             if prop.disabled or not prop.access.readable():
                 continue
-            result[prop.name] = Variant(prop.signature,
-                                        getattr(interface, prop.prop_getter.__name__))
+            result[prop.name] = Variant(prop.signature, getattr(interface,
+                                                                prop.prop_getter.__name__))
 
         return result

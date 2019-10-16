@@ -94,13 +94,23 @@ async def test_peer_interface():
 
 @pytest.mark.asyncio
 async def test_object_manager():
-    expected_reply = {'/test/path/deeper': {
-        'test.interface2': {'Bar': Variant('s', 'str'), 'Foo': Variant('y', 42)}
-    }}
-    reply_ext = {'/test/path': {
-        'test.interface1': {},
-        'test.interface2': {'Bar': Variant('s', 'str'), 'Foo': Variant('y', 42)}
-    }}
+    expected_reply = {
+        '/test/path/deeper': {
+            'test.interface2': {
+                'Bar': Variant('s', 'str'),
+                'Foo': Variant('y', 42)
+            }
+        }
+    }
+    reply_ext = {
+        '/test/path': {
+            'test.interface1': {},
+            'test.interface2': {
+                'Bar': Variant('s', 'str'),
+                'Foo': Variant('y', 42)
+            }
+        }
+    }
 
     bus1 = await MessageBus().connect()
     bus2 = await MessageBus().connect()
@@ -111,7 +121,7 @@ async def test_object_manager():
     export_path = '/test/path'
     bus1.export(export_path, interface)
     bus1.export(export_path, interface2)
-    bus1.export(export_path+'/deeper', interface2)
+    bus1.export(export_path + '/deeper', interface2)
 
     reply_root = await bus2.call(
         Message(destination=bus1.unique_name,
@@ -127,7 +137,7 @@ async def test_object_manager():
 
     reply_level2 = await bus2.call(
         Message(destination=bus1.unique_name,
-                path=export_path+'/deeper',
+                path=export_path + '/deeper',
                 interface='org.freedesktop.DBus.ObjectManager',
                 member='GetManagedObjects'))
 
