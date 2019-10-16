@@ -38,9 +38,6 @@ class BaseMessageBus:
         Must be passed in by an implementation that supports the high-level client.
     :type ProxyObject: Type[:class:`BaseProxyObject
         <dbus_next.proxy_object.BaseProxyObject>`]
-    :param expanded_intr: An option to select expanded interface tree in introspection or just
-        exported interfaces.
-    :type expanded_intr: bool
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
@@ -50,8 +47,7 @@ class BaseMessageBus:
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
-                 ProxyObject: Optional[Type[BaseProxyObject]] = None,
-                 expanded_intr: Optional[bool] = False):
+                 ProxyObject: Optional[Type[BaseProxyObject]] = None):
         self.unique_name = None
         self._disconnected = False
 
@@ -68,7 +64,6 @@ class BaseMessageBus:
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
         self._ProxyObject = ProxyObject
-        self._expanded = expanded_intr
 
         # machine id is lazy loaded
         self._machine_id = None
@@ -409,7 +404,7 @@ class BaseMessageBus:
             for interface in self._path_exports[path]:
                 node.interfaces.append(interface.introspect())
         else:
-            node = intr.Node.default(path) if self._expanded else intr.Node(path)
+            node = intr.Node(path)
 
         children = set()
 

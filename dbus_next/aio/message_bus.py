@@ -28,19 +28,14 @@ class MessageBus(BaseMessageBus):
     :type bus_type: :class:`BusType <dbus_next.BusType>`
     :param bus_address: A specific bus address to connect to. Should not be
         used under normal circumstances.
-    :param expanded_intr: An option to select expanded interface tree in introspection or just
-        exported interfaces.
-    :type expanded_intr: bool
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
 
-    def __init__(self, bus_address: str = None,
-                 bus_type: BusType = BusType.SESSION,
-                 expanded_intr: Optional[bool] = False):
-        super().__init__(bus_address, bus_type, ProxyObject, expanded_intr)
+    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
+        super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
 
