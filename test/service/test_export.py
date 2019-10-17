@@ -110,4 +110,3 @@ async def test_export_introspection():
 
     root = bus._introspect_export_path('/')
     assert len(root.nodes) == 1
-

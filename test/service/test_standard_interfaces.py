@@ -1,4 +1,5 @@
-from dbus_next.service import ServiceInterface
+from dbus_next.service import ServiceInterface, dbus_property, PropertyAccess
+from dbus_next.signature import Variant
 from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageType, introspection as intr
 
@@ -10,6 +11,21 @@ standard_interfaces_count = len(intr.Node.default().interfaces)
 class ExampleInterface(ServiceInterface):
     def __init__(self, name):
         super().__init__(name)
+
+
+class ExampleComplexInterface(ServiceInterface):
+    def __init__(self, name):
+        self._foo = 42
+        self._bar = 'str'
+        super().__init__(name)
+
+    @dbus_property(access=PropertyAccess.READ)
+    def Foo(self) -> 'y':
+        return self._foo
+
+    @dbus_property(access=PropertyAccess.READ)
+    def Bar(self) -> 's':
+        return self._bar
 
 
 @pytest.mark.asyncio
@@ -74,3 +90,62 @@ async def test_peer_interface():
 
     assert reply.message_type == MessageType.METHOD_RETURN, reply.body[0]
     assert reply.signature == 's'
+
+
+@pytest.mark.asyncio
+async def test_object_manager():
+    expected_reply = {
+        '/test/path/deeper': {
+            'test.interface2': {
+                'Bar': Variant('s', 'str'),
+                'Foo': Variant('y', 42)
+            }
+        }
+    }
+    reply_ext = {
+        '/test/path': {
+            'test.interface1': {},
+            'test.interface2': {
+                'Bar': Variant('s', 'str'),
+                'Foo': Variant('y', 42)
+            }
+        }
+    }
+
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
+
+    interface = ExampleInterface('test.interface1')
+    interface2 = ExampleComplexInterface('test.interface2')
+
+    export_path = '/test/path'
+    bus1.export(export_path, interface)
+    bus1.export(export_path, interface2)
+    bus1.export(export_path + '/deeper', interface2)
+
+    reply_root = await bus2.call(
+        Message(destination=bus1.unique_name,
+                path='/',
+                interface='org.freedesktop.DBus.ObjectManager',
+                member='GetManagedObjects'))
+
+    reply_level1 = await bus2.call(
+        Message(destination=bus1.unique_name,
+                path=export_path,
+                interface='org.freedesktop.DBus.ObjectManager',
+                member='GetManagedObjects'))
+
+    reply_level2 = await bus2.call(
+        Message(destination=bus1.unique_name,
+                path=export_path + '/deeper',
+                interface='org.freedesktop.DBus.ObjectManager',
+                member='GetManagedObjects'))
+
+    assert reply_root.signature == 'a{oa{sa{sv}}}'
+    assert reply_level1.signature == 'a{oa{sa{sv}}}'
+    assert reply_level2.signature == 'a{oa{sa{sv}}}'
+
+    assert reply_level2.body == [{}]
+    assert reply_level1.body == [expected_reply]
+    expected_reply.update(reply_ext)
+    assert reply_root.body == [expected_reply]
