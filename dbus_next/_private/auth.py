@@ -12,7 +12,8 @@ class AuthResponse(enum.Enum):
 
 def auth_external():
     hex_uid = str(os.getuid()).encode().hex()
-    return f'AUTH EXTERNAL {hex_uid}\r\n'.encode()
+    return f'AUTH ANONYMOUS\r\n'.encode()
+    #return f'AUTH EXTERNAL {hex_uid}\r\n'.encode()
 
 
 def auth_begin():
