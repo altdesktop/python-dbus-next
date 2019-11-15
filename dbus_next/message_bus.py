@@ -457,6 +457,7 @@ class BaseMessageBus:
                     
                 try:
                     self._sock.connect((ip_addr, ip_port))
+                    self._sock.setblocking(False)
                     break
                 except Exception as e:
                     err = e
