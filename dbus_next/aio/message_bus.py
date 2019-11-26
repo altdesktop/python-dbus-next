@@ -2,7 +2,7 @@ from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
-from .._private.auth import auth_external, auth_parse_line, auth_begin, AuthResponse
+from .._private.auth import auth_external, auth_anonymous, auth_parse_line, auth_begin, AuthResponse
 from ..errors import AuthError, DBusError
 from .proxy_object import ProxyObject
 from .. import introspection as intr
@@ -10,6 +10,7 @@ from .. import introspection as intr
 import logging
 import asyncio
 import traceback
+import socket
 from typing import Optional
 
 
@@ -54,7 +55,11 @@ class MessageBus(BaseMessageBus):
         future = self._loop.create_future()
 
         await self._loop.sock_sendall(self._sock, b'\0')
-        await self._loop.sock_sendall(self._sock, auth_external())
+        # external authentification does not work on TCP connections
+        if self._sock.family == socket.AF_INET:
+          await self._loop.sock_sendall(self._sock, auth_anonymous())
+        else:
+          await self._loop.sock_sendall(self._sock, auth_external())
         response, args = auth_parse_line(await self._auth_readline())
 
         if response != AuthResponse.OK:
