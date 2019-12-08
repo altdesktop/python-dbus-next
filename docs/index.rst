@@ -59,7 +59,7 @@ Development for this library happens on `Github <https://github.com/acrisci/pyth
 License
 ++++++++
 
-This library is available under an `MIT License <https://github.com/acrisci/python-dbus-next/blob/master/LICENCE>`_.
+This library is available under an `MIT License <https://github.com/acrisci/python-dbus-next/blob/master/LICENSE>`_.
 
 © 2019, Tony Crisci
 
