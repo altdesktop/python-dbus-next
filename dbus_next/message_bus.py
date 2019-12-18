@@ -540,22 +540,28 @@ class BaseMessageBus:
         elif msg.message_type == MessageType.METHOD_CALL:
             if not handled:
                 handler = self._find_message_handler(msg)
+
+                send_reply = self.send
+
+                if  msg.flags & MessageFlag.NO_REPLY_EXPECTED:
+                    send_reply = lambda msg: None
+
                 if handler:
                     try:
                         result = handler(msg)
                         if type(result) is Message:
-                            self.send(result)
+                            send_reply(result)
                     except DBusError as e:
-                        self.send(e._as_message(msg))
+                        send_reply(e._as_message(msg))
                     except Exception as e:
-                        self.send(
+                        send_reply(
                             Message.new_error(
                                 msg, ErrorType.SERVICE_ERROR,
                                 f'The service interface raised an error: {e}.\n{traceback.format_exc()}'
                             ))
 
                 else:
-                    self.send(
+                    send_reply(
                         Message.new_error(
                             msg, ErrorType.UNKNOWN_METHOD,
                             f'{msg.interface}.{msg.member} with signature "{msg.signature}" could not be found'
