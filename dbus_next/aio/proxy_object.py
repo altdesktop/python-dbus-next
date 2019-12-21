@@ -27,7 +27,7 @@ class ProxyInterface(BaseProxyInterface):
 
     A *method call* takes this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         result = await interface.call_[METHOD](*args)
 
@@ -40,7 +40,7 @@ class ProxyInterface(BaseProxyInterface):
 
     To *listen to a signal* use this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         interface.on_[SIGNAL](callback)
 
@@ -52,7 +52,7 @@ class ProxyInterface(BaseProxyInterface):
 
     To *get or set a property* use this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         value = await interface.get_[PROPERTY]()
         await interface.set_[PROPERTY](value)
