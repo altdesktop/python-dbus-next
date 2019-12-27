@@ -1,6 +1,6 @@
 from dbus_next.service import ServiceInterface, method
 from dbus_next.aio import MessageBus
-from dbus_next import Message, MessageType, ErrorType, Variant, SignatureTree, DBusError
+from dbus_next import Message, MessageType, ErrorType, Variant, SignatureTree, DBusError, MessageFlag
 
 import pytest
 
@@ -59,14 +59,15 @@ async def test_methods():
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
 
-    async def call(member, signature='', body=[]):
+    async def call(member, signature='', body=[], flags=MessageFlag.NONE):
         return await bus2.call(
             Message(destination=bus1.unique_name,
                     path=export_path,
                     interface=interface.name,
                     member=member,
                     signature=signature,
-                    body=body))
+                    body=body,
+                    flags=flags))
 
     bus1.export(export_path, interface)
 
@@ -107,3 +108,12 @@ async def test_methods():
     assert reply.message_type == MessageType.ERROR, reply.body[0]
     assert reply.error_name == 'test.error', reply.body[0]
     assert reply.body == ['an error ocurred']
+
+    reply = await call('ping', flags=MessageFlag.NO_REPLY_EXPECTED)
+    assert reply is None
+
+    reply = await call('throws_unexpected_error', flags=MessageFlag.NO_REPLY_EXPECTED)
+    assert reply is None
+
+    reply = await call('throws_dbus_error', flags=MessageFlag.NO_REPLY_EXPECTED)
+    assert reply is None
