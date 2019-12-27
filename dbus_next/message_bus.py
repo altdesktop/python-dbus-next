@@ -43,6 +43,7 @@ class BaseMessageBus:
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
+
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -543,7 +544,7 @@ class BaseMessageBus:
 
                 send_reply = self.send
 
-                if  msg.flags & MessageFlag.NO_REPLY_EXPECTED:
+                if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
                     send_reply = lambda msg: None
 
                 if handler:
