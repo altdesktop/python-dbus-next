@@ -33,7 +33,6 @@ class MessageBus(BaseMessageBus):
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-
     def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()

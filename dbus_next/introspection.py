@@ -28,7 +28,6 @@ class Arg:
         - :class:`InvalidSignatureError <dbus_next.InvalidSignatureError>` - If the signature is not valid.
         - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the signature is not a single complete type.
     """
-
     def __init__(self,
                  signature: Union[SignatureType, str],
                  direction: List[ArgDirection] = None,
@@ -101,7 +100,6 @@ class Signal:
     :raises:
         - :class:`InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the name of the signal is not a valid member name.
     """
-
     def __init__(self, name: str, args: List[Arg] = None):
         if name is not None:
             assert_member_name_valid(name)
@@ -165,7 +163,6 @@ class Method:
     :raises:
         - :class:`InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the name of this method is not valid.
     """
-
     def __init__(self, name: str, in_args: List[Arg] = [], out_args: List[Arg] = []):
         assert_member_name_valid(name)
 
@@ -238,8 +235,9 @@ class Property:
         - :class `InvalidSignatureError <dbus_next.InvalidSignatureError>` - If the given signature is not valid.
         - :class: `InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the member name is not valid.
     """
-
-    def __init__(self, name: str, signature: str,
+    def __init__(self,
+                 name: str,
+                 signature: str,
                  access: PropertyAccess = PropertyAccess.READWRITE):
         assert_member_name_valid(name)
 
@@ -303,7 +301,6 @@ class Interface:
     :raises:
         - :class:`InvalidInterfaceNameError <dbus_next.InvalidInterfaceNameError>` - If the name is not a valid interface name.
     """
-
     def __init__(self,
                  name: str,
                  methods: List[Method] = None,
@@ -387,7 +384,6 @@ class Node:
     :raises:
         - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the name is not a valid node name.
     """
-
     def __init__(self, name: str = None, interfaces: List[Interface] = None, is_root: bool = True):
         if not is_root and not name:
             raise InvalidIntrospectionError('child nodes must have a "name" attribute')
