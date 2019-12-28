@@ -51,12 +51,59 @@ class ExampleInterface(ServiceInterface):
         raise DBusError('test.error', 'an error ocurred')
 
 
+class AsyncInterface(ServiceInterface):
+    def __init__(self, name):
+        super().__init__(name)
+
+    @method()
+    async def echo(self, what: 's') -> 's':
+        assert type(self) is AsyncInterface
+        return what
+
+    @method()
+    async def echo_multiple(self, what1: 's', what2: 's') -> 'ss':
+        assert type(self) is AsyncInterface
+        return [what1, what2]
+
+    @method()
+    async def echo_containers(self, array: 'as', variant: 'v', dict_entries: 'a{sv}',
+                              struct: '(s(s(v)))') -> 'asva{sv}(s(s(v)))':
+        assert type(self) is AsyncInterface
+        return [array, variant, dict_entries, struct]
+
+    @method()
+    async def ping(self):
+        assert type(self) is AsyncInterface
+        pass
+
+    @method(name='renamed')
+    async def original_name(self):
+        assert type(self) is AsyncInterface
+        pass
+
+    @method(disabled=True)
+    async def not_here(self):
+        assert type(self) is AsyncInterface
+        pass
+
+    @method()
+    async def throws_unexpected_error(self):
+        assert type(self) is AsyncInterface
+        raise Exception('oops')
+
+    @method()
+    def throws_dbus_error(self):
+        assert type(self) is AsyncInterface
+        raise DBusError('test.error', 'an error ocurred')
+
+
+@pytest.mark.parametrize('interface_class', [ExampleInterface, AsyncInterface])
 @pytest.mark.asyncio
-async def test_methods():
+async def test_methods(interface_class):
     bus1 = await MessageBus().connect()
     bus2 = await MessageBus().connect()
 
-    interface = ExampleInterface('test.interface')
+    interface = interface_class('test.interface')
     export_path = '/test/path'
 
     async def call(member, signature='', body=[], flags=MessageFlag.NONE):

@@ -2,6 +2,7 @@ from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
+from ..service import ServiceInterface
 from .._private.auth import auth_external, auth_parse_line, auth_begin, AuthResponse
 from ..errors import AuthError, DBusError
 from .proxy_object import ProxyObject
@@ -255,6 +256,31 @@ class MessageBus(BaseMessageBus):
 
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
+
+    @classmethod
+    def _make_method_handler(cls, interface, method):
+        if not asyncio.iscoroutinefunction(method.fn):
+            return super()._make_method_handler(interface, method)
+
+        def handler(msg, send_reply):
+            def done(fut):
+                try:
+                    body = ServiceInterface._fn_result_to_body(fut.result(),
+                                                               method.out_signature_tree)
+                    send_reply(Message.new_method_return(msg, method.out_signature, body))
+                except DBusError as e:
+                    send_reply(e._as_message(msg))
+                except Exception as e:
+                    send_reply(
+                        Message.new_error(
+                            msg, ErrorType.SERVICE_ERROR,
+                            f'The service interface raised an error: {e}.\n{traceback.format_exc()}'
+                        ))
+
+            fut = asyncio.ensure_future(method.fn(interface, *msg.body))
+            fut.add_done_callback(done)
+
+        return handler
 
     def _message_reader(self):
         try:
