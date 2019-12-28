@@ -496,6 +496,32 @@ class BaseMessageBus:
             logging.error(
                 f'got unexpected error processing a message: {e}.\n{traceback.format_exc()}')
 
+    def _send_reply(self, msg):
+        bus = self
+
+        class SendReply:
+            def __enter__(self):
+                return self
+
+            def __call__(self, reply):
+                if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
+                    return
+
+                bus.send(reply)
+
+            def __exit__(self, type, value, tb):
+                if type == DBusError:
+                    self(value._as_message(msg))
+
+                if type == Exception:
+                    self(
+                        Message.new_error(
+                            msg, ErrorType.SERVICE_ERROR,
+                            f'The service interface raised an error: {value}.\n{traceback.format_tb(tb)}'
+                        ))
+
+        return SendReply()
+
     def _process_message(self, msg):
         handled = False
 
@@ -541,28 +567,17 @@ class BaseMessageBus:
             if not handled:
                 handler = self._find_message_handler(msg)
 
-                send_reply = self.send
+                send_reply = self._send_reply(msg)
 
-                if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
-                    send_reply = lambda msg: None
-
-                if handler:
-                    try:
+                with send_reply:
+                    if handler:
                         handler(msg, send_reply)
-                    except DBusError as e:
-                        send_reply(e._as_message(msg))
-                    except Exception as e:
+                    else:
                         send_reply(
                             Message.new_error(
-                                msg, ErrorType.SERVICE_ERROR,
-                                f'The service interface raised an error: {e}.\n{traceback.format_exc()}'
+                                msg, ErrorType.UNKNOWN_METHOD,
+                                f'{msg.interface}.{msg.member} with signature "{msg.signature}" could not be found'
                             ))
-                else:
-                    send_reply(
-                        Message.new_error(
-                            msg, ErrorType.UNKNOWN_METHOD,
-                            f'{msg.interface}.{msg.member} with signature "{msg.signature}" could not be found'
-                        ))
 
         else:
             # An ERROR or a METHOD_RETURN

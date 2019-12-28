@@ -264,18 +264,10 @@ class MessageBus(BaseMessageBus):
 
         def handler(msg, send_reply):
             def done(fut):
-                try:
-                    body = ServiceInterface._fn_result_to_body(fut.result(),
-                                                               method.out_signature_tree)
+                with send_reply:
+                    result = fut.result()
+                    body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
                     send_reply(Message.new_method_return(msg, method.out_signature, body))
-                except DBusError as e:
-                    send_reply(e._as_message(msg))
-                except Exception as e:
-                    send_reply(
-                        Message.new_error(
-                            msg, ErrorType.SERVICE_ERROR,
-                            f'The service interface raised an error: {e}.\n{traceback.format_exc()}'
-                        ))
 
             fut = asyncio.ensure_future(method.fn(interface, *msg.body))
             fut.add_done_callback(done)
