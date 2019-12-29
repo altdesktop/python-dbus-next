@@ -12,7 +12,7 @@ If you're exposing a service for general use, you can request a well-known name 
 
 Services are defined by subclassing :class:`ServiceInterface <dbus_next.service.ServiceInterface>` and definining members as methods on the class with the decorator methods :func:`@method() <dbus_next.service.method>`, :func:`@dbus_property() <dbus_next.service.dbus_property>`, and :func:`@signal() <dbus_next.service.signal>`. The parameters of the decorated class methods must be annotated with DBus type strings to indicate the types of values they expect. See the documentation on `the type system </type-system/index.html>`_ for more information on how DBus types are mapped to Python values with signature strings. The decorator methods themselves take arguments that affect how the member is exported on the bus, such as the name of the member or the access permissions of a property.
 
-A class method decorated with ``@method()`` will be called when a client calls the method over DBus. The parameters given to the class method will be provided by the calling client and will conform to the parameter type annotations. The value returned by the class method will be returned to the client and must conform to the return type annotation specified by the user. If the return annotation specifies more than one type, the values must be returned in a ``list``.
+A class method decorated with ``@method()`` will be called when a client calls the method over DBus. The parameters given to the class method will be provided by the calling client and will conform to the parameter type annotations. The value returned by the class method will be returned to the client and must conform to the return type annotation specified by the user. If the return annotation specifies more than one type, the values must be returned in a ``list``. When :class:`aio.MessageBus` is used, methods can be coroutines.
 
 A class method decorated with ``@dbus_property()`` will be exposed as a DBus property getter. This decoration works the same as a standard Python ``@property``. The getter will be called when a client gets the property through the standard properties interface with ``org.freedesktop.DBus.Properties.Get``. Define a property setter with ``@method_name.setter`` taking the new value as a parameter. The setter will be called when the client sets the property through ``org.freedesktop.DBus.Properties.Set``.
 
@@ -48,7 +48,7 @@ After the service interface is defined, call :func:`MessageBus.export() <dbus_ne
             }
 
         @method()
-        def Bazify(self, bar: '(iiu)') -> 'vv':
+        async def Bazify(self, bar: '(iiu)') -> 'vv':
             print(f'called Bazify with bar={bar}')
 
             return [Variant('s', 'example'), Variant('s', 'bazify')]

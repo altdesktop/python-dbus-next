@@ -140,7 +140,6 @@ class MessageBus(BaseMessageBus):
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-
     def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
         if _import_error:
             raise _import_error

@@ -1,7 +1,6 @@
 from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
-from .message import Message
 from .errors import SignalDisabledError
 
 from functools import wraps
@@ -317,7 +316,6 @@ class ServiceInterface:
         valid interface name.
     :vartype name: str
     """
-
     def __init__(self, name: str):
         # TODO cannot be overridden by a dbus member
         self.name = name
@@ -453,12 +451,3 @@ class ServiceInterface:
         for bus in ServiceInterface._get_buses(interface):
             bus._interface_signal_notify(interface, interface.name, signal.name, signal.signature,
                                          body)
-
-    @staticmethod
-    def _make_method_handler(interface, method):
-        def handler(msg):
-            result = method.fn(interface, *msg.body)
-            body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
-            return Message.new_method_return(msg, method.out_signature, body)
-
-        return handler

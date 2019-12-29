@@ -43,7 +43,6 @@ class BaseMessageBus:
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -184,8 +183,8 @@ class BaseMessageBus:
     def request_name(self,
                      name: str,
                      flags: NameFlag = NameFlag.NONE,
-                     callback: Optional[
-                         Callable[[Optional[RequestNameReply], Optional[Exception]], None]] = None):
+                     callback: Optional[Callable[[Optional[RequestNameReply], Optional[Exception]],
+                                                 None]] = None):
         """Request that this message bus owns the given name.
 
         :param name: The name to request.
@@ -227,8 +226,8 @@ class BaseMessageBus:
 
     def release_name(self,
                      name: str,
-                     callback: Optional[
-                         Callable[[Optional[ReleaseNameReply], Optional[Exception]], None]] = None):
+                     callback: Optional[Callable[[Optional[ReleaseNameReply], Optional[Exception]],
+                                                 None]] = None):
         """Request that this message bus release the given name.
 
         :param name: The name to release.
@@ -497,6 +496,32 @@ class BaseMessageBus:
             logging.error(
                 f'got unexpected error processing a message: {e}.\n{traceback.format_exc()}')
 
+    def _send_reply(self, msg):
+        bus = self
+
+        class SendReply:
+            def __enter__(self):
+                return self
+
+            def __call__(self, reply):
+                if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
+                    return
+
+                bus.send(reply)
+
+            def __exit__(self, type, value, tb):
+                if type == DBusError:
+                    self(value._as_message(msg))
+
+                if type == Exception:
+                    self(
+                        Message.new_error(
+                            msg, ErrorType.SERVICE_ERROR,
+                            f'The service interface raised an error: {value}.\n{traceback.format_tb(tb)}'
+                        ))
+
+        return SendReply()
+
     def _process_message(self, msg):
         handled = False
 
@@ -542,31 +567,17 @@ class BaseMessageBus:
             if not handled:
                 handler = self._find_message_handler(msg)
 
-                send_reply = self.send
+                send_reply = self._send_reply(msg)
 
-                if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
-                    send_reply = lambda msg: None
-
-                if handler:
-                    try:
-                        result = handler(msg)
-                        if type(result) is Message:
-                            send_reply(result)
-                    except DBusError as e:
-                        send_reply(e._as_message(msg))
-                    except Exception as e:
+                with send_reply:
+                    if handler:
+                        handler(msg, send_reply)
+                    else:
                         send_reply(
                             Message.new_error(
-                                msg, ErrorType.SERVICE_ERROR,
-                                f'The service interface raised an error: {e}.\n{traceback.format_exc()}'
+                                msg, ErrorType.UNKNOWN_METHOD,
+                                f'{msg.interface}.{msg.member} with signature "{msg.signature}" could not be found'
                             ))
-
-                else:
-                    send_reply(
-                        Message.new_error(
-                            msg, ErrorType.UNKNOWN_METHOD,
-                            f'{msg.interface}.{msg.member} with signature "{msg.signature}" could not be found'
-                        ))
 
         else:
             # An ERROR or a METHOD_RETURN
@@ -575,6 +586,15 @@ class BaseMessageBus:
                     handler = self._method_return_handlers[msg.reply_serial]
                     handler(msg, None)
                 del self._method_return_handlers[msg.reply_serial]
+
+    @classmethod
+    def _make_method_handler(cls, interface, method):
+        def handler(msg, send_reply):
+            result = method.fn(interface, *msg.body)
+            body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
+            send_reply(Message.new_method_return(msg, method.out_signature, body))
+
+        return handler
 
     def _find_message_handler(self, msg):
         handler = None
@@ -594,7 +614,7 @@ class BaseMessageBus:
                 handler = self._default_get_machine_id_handler
         elif msg._matches(interface='org.freedesktop.DBus.ObjectManager',
                           member='GetManagedObjects'):
-            handler = self._default_object_manager
+            handler = self._default_get_managed_objects_handler
 
         else:
             for interface in self._path_exports.get(msg.path, []):
@@ -604,23 +624,23 @@ class BaseMessageBus:
                     if msg._matches(interface=interface.name,
                                     member=method.name,
                                     signature=method.in_signature):
-                        handler = ServiceInterface._make_method_handler(interface, method)
+                        handler = self._make_method_handler(interface, method)
                         break
                 if handler:
                     break
 
         return handler
 
-    def _default_introspect_handler(self, msg):
+    def _default_introspect_handler(self, msg, send_reply):
         introspection = self._introspect_export_path(msg.path).tostring()
-        return Message.new_method_return(msg, 's', [introspection])
+        send_reply(Message.new_method_return(msg, 's', [introspection]))
 
-    def _default_ping_handler(self, msg):
-        return Message.new_method_return(msg)
+    def _default_ping_handler(self, msg, send_reply):
+        send_reply(Message.new_method_return(msg))
 
-    def _default_get_machine_id_handler(self, msg):
+    def _default_get_machine_id_handler(self, msg, send_reply):
         if self._machine_id:
-            self.send(Message.new_method_return(msg, 's', self._machine_id))
+            send_reply(Message.new_method_return(msg, 's', self._machine_id))
             return
 
         def reply_handler(reply, err):
@@ -630,11 +650,11 @@ class BaseMessageBus:
 
             if reply.message_type == MessageType.METHOD_RETURN:
                 self._machine_id = reply.body[0]
-                self.send(Message.new_method_return(msg, 's', [self._machine_id]))
+                send_reply(Message.new_method_return(msg, 's', [self._machine_id]))
             elif reply.message_type == MessageType.ERROR:
-                self.send(Message.new_error(msg, reply.error_name, reply.body))
+                send_reply(Message.new_error(msg, reply.error_name, reply.body))
             else:
-                self.send(Message.new_error(msg, ErrorType.FAILED, 'could not get machine_id'))
+                send_reply(Message.new_error(msg, ErrorType.FAILED, 'could not get machine_id'))
 
         self._call(
             Message(destination='org.freedesktop.DBus',
@@ -642,7 +662,7 @@ class BaseMessageBus:
                     interface='org.freedesktop.DBus.Peer',
                     member='GetMachineId'), reply_handler)
 
-    def _default_object_manager(self, msg):
+    def _default_get_managed_objects_handler(self, msg, send_reply):
         result = {}
 
         for node in self._path_exports:
@@ -653,9 +673,9 @@ class BaseMessageBus:
             for interface in self._path_exports[node]:
                 result[node][interface.name] = self._get_all_properties(interface)
 
-        return Message.new_method_return(msg, 'a{oa{sa{sv}}}', [result])
+        send_reply(Message.new_method_return(msg, 'a{oa{sa{sv}}}', [result]))
 
-    def _default_properties_handler(self, msg):
+    def _default_properties_handler(self, msg, send_reply):
         methods = {'Get': 'ss', 'Set': 'ssv', 'GetAll': 's'}
         if msg.member not in methods or methods[msg.member] != msg.signature:
             raise DBusError(
@@ -695,7 +715,8 @@ class BaseMessageBus:
                     raise DBusError(ErrorType.UNKNOWN_PROPERTY,
                                     'the property does not have read access')
                 prop_value = getattr(interface, prop.prop_getter.__name__)
-                return Message.new_method_return(msg, 'v', [Variant(prop.signature, prop_value)])
+                send_reply(
+                    Message.new_method_return(msg, 'v', [Variant(prop.signature, prop_value)]))
             elif msg.member == 'Set':
                 if not prop.access.writable():
                     raise DBusError(ErrorType.PROPERTY_READ_ONLY, 'the property is readonly')
@@ -705,11 +726,11 @@ class BaseMessageBus:
                                     f'wrong signature for property. expected "{prop.signature}"')
                 assert prop.prop_setter
                 setattr(interface, prop.prop_setter.__name__, value.value)
-                return Message.new_method_return(msg)
+                send_reply(Message.new_method_return(msg))
 
         elif msg.member == 'GetAll':
             result = self._get_all_properties(interface)
-            return Message.new_method_return(msg, 'a{sv}', [result])
+            send_reply(Message.new_method_return(msg, 'a{sv}', [result]))
         else:
             assert False
 
