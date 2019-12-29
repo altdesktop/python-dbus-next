@@ -1,8 +1,6 @@
 from dbus_next import PropertyAccess, introspection as intr
 from dbus_next.service import ServiceInterface, method, signal, dbus_property
 
-import xml.etree.ElementTree as ET
-
 
 class ExampleInterface(ServiceInterface):
     def __init__(self):

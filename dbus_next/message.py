@@ -54,6 +54,7 @@ class Message:
         - :class:`InvalidMemberNameError` - If ``member`` is not a valid member name.
         - :class:`InvalidInterfaceNameError` - If ``error_name`` or ``interface`` is not a valid interface name.
     """
+
     def __init__(self,
                  destination: str = None,
                  path: str = None,
