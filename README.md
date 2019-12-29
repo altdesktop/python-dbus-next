@@ -4,8 +4,6 @@ The next great DBus library for Python.
 
 [Documentation](https://python-dbus-next.readthedocs.io/en/latest/).
 
-*This project is in the early stages of development and the public api is unstable*
-
 python-dbus-next is a Python library for DBus that aims to be a fully featured high level library primarily geared towards integration of applications into Linux desktop and mobile environments.
 
 Desktop application developers can use this library for integrating their applications into desktop environments by implementing common DBus standard interfaces or creating custom plugin interfaces.
@@ -31,8 +29,6 @@ pip3 install dbus-next
 ```
 
 ## The Client Interface
-
-*The client interface is somewhat stable*
 
 To use a service on the bus, the library constructs a proxy object you can use to call methods, get and set properties, and listen to signals.
 
@@ -79,8 +75,6 @@ loop.run_until_complete(main())
 ```
 
 ## The Service Interface
-
-*The service interface is somewhat stable*
 
 To define a service on the bus, use the `ServiceInterface` class and decorate class methods to specify DBus methods, properties, and signals with their type signatures.
 
@@ -132,8 +126,6 @@ asyncio.get_event_loop().run_until_complete(main())
 ```
 
 ## The Low-Level Interface
-
-*The low-level interface is somewhat stable*
 
 The low-level interface works with DBus messages directly.
 
