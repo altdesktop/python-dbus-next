@@ -99,6 +99,7 @@ class BaseMessageBus:
 
         self._path_exports[path].append(interface)
         ServiceInterface._add_bus(interface, self)
+        self.emit_interface_added(path, interface)
 
     def unexport(self, path: str, interface: Optional[Union[ServiceInterface, str]] = None):
         """Unexport the path or service interface to make it no longer
@@ -129,19 +130,23 @@ class BaseMessageBus:
             except StopIteration:
                 return
 
+        removed_interfaces = []
         if interface is None:
             del self._path_exports[path]
             for iface in filter(lambda e: not self._has_interface(e), exports):
+                removed_interfaces.append(iface.name)
                 ServiceInterface._remove_bus(iface, self)
         else:
             for i, iface in enumerate(exports):
                 if iface is interface:
+                    removed_interfaces.append(iface.name)
                     del self._path_exports[path][i]
                     if not self._path_exports[path]:
                         del self._path_exports[path]
                     if not self._has_interface(iface):
                         ServiceInterface._remove_bus(iface, self)
                     break
+        self.emit_interface_removed(path, removed_interfaces)
 
     def introspect(self, bus_name: str, path: str,
                    callback: Callable[[Optional[intr.Node], Optional[Exception]], None]):
@@ -180,6 +185,49 @@ class BaseMessageBus:
                     path=path,
                     interface='org.freedesktop.DBus.Introspectable',
                     member='Introspect'), reply_notify)
+
+    def emit_interface_added(self, path, interface):
+        """Emit the ``org.freedesktop.DBus.ObjectManager.InterfacesAdded`` signal.
+
+        This signal is intended to be used to alert clients when
+        a new interface has been added.
+
+        :param path: Path of exported object.
+        :type path: str
+        :param interface: Exported service interface.
+        :type interface: :class:`ServiceInterface
+            <dbus_next.service.ServiceInterface>`
+        """
+        body = {
+            interface.name: {
+                prop.name: Variant(prop.signature, prop.prop_getter(interface))
+            for prop in interface._get_properties(interface)}
+        }
+
+        self.send(
+            Message.new_signal(path=path,
+                               interface='org.freedesktop.DBus.ObjectManager',
+                               member='InterfacesAdded',
+                               signature='oa{sa{sv}}',
+                               body=[path, body]))
+
+    def emit_interface_removed(self, path, removed_interfaces):
+        """Emit the ``org.freedesktop.DBus.ObjectManager.InterfacesRemoved` signal.
+
+        This signal is intended to be used to alert clients when
+        a interface has been removed.
+
+        :param path: Path of removed (unexported) object.
+        :type path: str
+        :param removed_interfaces: List of unexported service interfaces.
+        :type removed_interfaces: list[str]
+        """
+        self.send(
+            Message.new_signal(path=path,
+                               interface='org.freedesktop.DBus.ObjectManager',
+                               member='InterfacesRemoved',
+                               signature='oas',
+                               body=[path, removed_interfaces]))
 
     def request_name(self,
                      name: str,
