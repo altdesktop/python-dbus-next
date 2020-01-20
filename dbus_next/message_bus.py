@@ -99,7 +99,7 @@ class BaseMessageBus:
 
         self._path_exports[path].append(interface)
         ServiceInterface._add_bus(interface, self)
-        self.emit_interface_added(path, interface)
+        self._emit_interface_added(path, interface)
 
     def unexport(self, path: str, interface: Optional[Union[ServiceInterface, str]] = None):
         """Unexport the path or service interface to make it no longer
@@ -146,7 +146,7 @@ class BaseMessageBus:
                     if not self._has_interface(iface):
                         ServiceInterface._remove_bus(iface, self)
                     break
-        self.emit_interface_removed(path, removed_interfaces)
+        self._emit_interface_removed(path, removed_interfaces)
 
     def introspect(self, bus_name: str, path: str,
                    callback: Callable[[Optional[intr.Node], Optional[Exception]], None]):
@@ -186,7 +186,7 @@ class BaseMessageBus:
                     interface='org.freedesktop.DBus.Introspectable',
                     member='Introspect'), reply_notify)
 
-    def emit_interface_added(self, path, interface):
+    def _emit_interface_added(self, path, interface):
         """Emit the ``org.freedesktop.DBus.ObjectManager.InterfacesAdded`` signal.
 
         This signal is intended to be used to alert clients when
@@ -211,7 +211,7 @@ class BaseMessageBus:
                                signature='oa{sa{sv}}',
                                body=[path, body]))
 
-    def emit_interface_removed(self, path, removed_interfaces):
+    def _emit_interface_removed(self, path, removed_interfaces):
         """Emit the ``org.freedesktop.DBus.ObjectManager.InterfacesRemoved` signal.
 
         This signal is intended to be used to alert clients when

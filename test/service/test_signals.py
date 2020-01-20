@@ -54,22 +54,22 @@ class SecondExampleInterface(ServiceInterface):
 
 
 class ExpectMessage:
-    def __init__(self, bus1, bus2, timeout=1):
+    def __init__(self, bus1, bus2, interface_name, timeout=1):
         self.future = asyncio.get_event_loop().create_future()
         self.bus1 = bus1
         self.bus2 = bus2
+        self.interface_name = interface_name
         self.timeout = timeout
         self.timeout_task = None
 
     def message_handler(self, msg):
-        self.timeout_task.cancel()
-        self.bus2.remove_message_handler(self.message_handler)
-        self.future.set_result(msg)
-        return True
+        if msg.sender == self.bus1.unique_name and msg.interface == self.interface_name:
+            self.timeout_task.cancel()
+            self.future.set_result(msg)
+            return True
 
     def timeout_cb(self):
-        self.bus2.remove_message_handler(self.message_handler)
-        self.future.set_result(TimeoutError())
+        self.future.set_exception(TimeoutError)
 
     async def __aenter__(self):
         self.bus2.add_message_handler(self.message_handler)
@@ -78,15 +78,12 @@ class ExpectMessage:
         return self.future
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.bus2.remove_message_handler(self.message_handler)
 
 
-def assert_signal_ok(signal, interface_name, export_path, unique_name, member, signature, body):
-    assert not isinstance(signal, TimeoutError)
+def assert_signal_ok(signal, export_path, member, signature, body):
     assert signal.message_type == MessageType.SIGNAL
-    assert signal.interface == interface_name
     assert signal.path == export_path
-    assert signal.sender == unique_name
     assert signal.member == member
     assert signal.signature == signature
     assert signal.body == body
@@ -109,49 +106,41 @@ async def test_signals():
                 signature='s',
                 body=[f'sender={bus1.unique_name}']))
 
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, interface.name) as expected_signal:
         interface.signal_empty()
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name=interface.name,
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='signal_empty',
             signature='',
             body=[]
         )
 
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, interface.name) as expected_signal:
         interface.original_name()
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name=interface.name,
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='renamed',
             signature='',
             body=[]
         )
 
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, interface.name) as expected_signal:
         interface.signal_simple()
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name=interface.name,
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='signal_simple',
             signature='s',
             body=['hello']
         )
 
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, interface.name) as expected_signal:
         interface.signal_multiple()
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name=interface.name,
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='signal_multiple',
             signature='ss',
             body=['hello', 'world']
@@ -179,26 +168,22 @@ async def test_interface_add_remove_signal():
     export_path = '/test/path'
 
     # add first interface
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, 'org.freedesktop.DBus.ObjectManager') as expected_signal:
         bus1.export(export_path, first_interface)
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name='org.freedesktop.DBus.ObjectManager',
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='InterfacesAdded',
             signature='oa{sa{sv}}',
             body=[export_path, {'test.interface.first': {'test_prop': Variant('i', 42)}}]
         )
 
     # add second interface
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, 'org.freedesktop.DBus.ObjectManager') as expected_signal:
         bus1.export(export_path, second_interface)
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name='org.freedesktop.DBus.ObjectManager',
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='InterfacesAdded',
             signature='oa{sa{sv}}',
             body=[export_path,
@@ -206,30 +191,27 @@ async def test_interface_add_remove_signal():
         )
 
     # remove single interface
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, 'org.freedesktop.DBus.ObjectManager') as expected_signal:
         bus1.unexport(export_path, second_interface)
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name='org.freedesktop.DBus.ObjectManager',
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='InterfacesRemoved',
             signature='oas',
             body=[export_path, ['test.interface.second']]
         )
 
     # add second interface again
-    async with ExpectMessage(bus1, bus2):
+    async with ExpectMessage(bus1, bus2, 'org.freedesktop.DBus.ObjectManager') as expected_signal:
         bus1.export(export_path, second_interface)
+        await expected_signal
 
     # remove multiple interfaces
-    async with ExpectMessage(bus1, bus2) as expected_signal:
+    async with ExpectMessage(bus1, bus2, 'org.freedesktop.DBus.ObjectManager') as expected_signal:
         bus1.unexport(export_path)
         assert_signal_ok(
             signal=await expected_signal,
-            interface_name='org.freedesktop.DBus.ObjectManager',
             export_path=export_path,
-            unique_name=bus1.unique_name,
             member='InterfacesRemoved',
             signature='oas',
             body=[export_path, ['test.interface.first', 'test.interface.second']]
