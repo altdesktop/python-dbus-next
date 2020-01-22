@@ -7,6 +7,7 @@ from .errors import DBusError, InvalidAddressError
 from .signature import Variant
 from .proxy_object import BaseProxyObject
 from . import introspection as intr
+from contextlib import suppress
 
 import inspect
 import traceback
@@ -198,11 +199,12 @@ class BaseMessageBus:
         :type interface: :class:`ServiceInterface
             <dbus_next.service.ServiceInterface>`
         """
-        body = {
-            interface.name: {
-                prop.name: Variant(prop.signature, prop.prop_getter(interface))
-            for prop in interface._get_properties(interface)}
-        }
+        body = {interface.name: {}}
+        properties = interface._get_properties(interface)
+
+        for prop in properties:
+            with suppress(Exception):
+                body[interface.name][prop.name] = Variant(prop.signature, prop.prop_getter(interface))
 
         self.send(
             Message.new_signal(path=path,
