@@ -63,6 +63,8 @@ async def test_signals():
         except Exception as e:
             err = e
 
+    await ping()
+
     interface.on_some_signal(single_handler)
     interface.on_signal_multiple(multiple_handler)
 

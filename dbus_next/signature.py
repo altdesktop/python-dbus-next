@@ -386,3 +386,6 @@ class Variant:
             return self.signature == other.signature and self.value == other.value
         else:
             return super().__eq__(other)
+
+    def __repr__(self):
+        return "<dbus_next.signature.Variant ('%s', %s)>" % (self.type.signature, self.value)
