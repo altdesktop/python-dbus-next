@@ -54,9 +54,9 @@ async def main():
     interface_name = 'example.interface'
 
     bus = await MessageBus().connect()
-    await bus.request_name(name)
     interface = ExampleInterface(interface_name)
     bus.export('/example/path', interface)
+    await bus.request_name(name)
     print(f'service up on name: "{name}", path: "{path}", interface: "{interface_name}"')
     await asyncio.get_event_loop().create_future()
 

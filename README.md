@@ -117,9 +117,11 @@ class ExampleInterface(ServiceInterface):
 
 async def main():
     bus = await MessageBus().connect()
-    await bus.request_name('test.name')
     interface = ExampleInterface('test.interface')
     bus.export('/test/path', interface)
+    # now that we are ready to handle requests, we can request name from D-Bus
+    await bus.request_name('test.name')
+    # wait indefinitely
     await asyncio.get_event_loop().create_future()
 
 asyncio.get_event_loop().run_until_complete(main())

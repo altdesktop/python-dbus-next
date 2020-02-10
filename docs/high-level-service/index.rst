@@ -77,9 +77,9 @@ After the service interface is defined, call :func:`MessageBus.export() <dbus_ne
 
     async def main():
         bus = await MessageBus().connect()
-        await bus.request_name('com.example.name')
         interface = ExampleInterface()
         bus.export('/com/example/sample0', interface)
+        await bus.request_name('com.example.name')
 
         # emit the changed signal after two seconds.
         await asyncio.sleep(2)
