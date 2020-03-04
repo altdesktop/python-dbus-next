@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 0.1.3
+
+This version adds some bugfixes and new features.
+
+* Add the object manager interface to the service. (#14, #37)
+* Allow coroutines in service methods. (#24, #27)
+* Client: don't send method replies with `NO_REPLY_EXPECTED` message flag. (#22)
+* Fix duplicate nodes in introspection. (#13)
+
 ## Version 0.1.2
 
 This version adds some bugfixes.
