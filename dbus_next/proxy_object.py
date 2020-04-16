@@ -1,15 +1,17 @@
-from .validators import assert_object_path_valid, assert_bus_name_valid
-from . import message_bus
-from .message import Message
-from .constants import MessageType, ErrorType
-from . import introspection as intr
-from .errors import DBusError, InterfaceNotFoundError
-
-from typing import Type, Union, List
-import logging
-import xml.etree.ElementTree as ET
+import functools
 import inspect
+import logging
 import re
+import weakref
+import xml.etree.ElementTree as ET
+from typing import Type, Union, List
+
+from . import introspection as intr
+from . import message_bus
+from .constants import MessageType, ErrorType
+from .errors import DBusError, InterfaceNotFoundError
+from .message import Message
+from .validators import assert_object_path_valid, assert_bus_name_valid
 
 
 class BaseProxyInterface:
@@ -37,13 +39,17 @@ class BaseProxyInterface:
     :ivar bus: The message bus this proxy interface is connected to.
     :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
     """
-
     def __init__(self, bus_name, path, introspection, bus):
 
         self.bus_name = bus_name
         self.path = path
         self.introspection = introspection
         self.bus = bus
+        self._signal_handlers = {}
+        self.__added_handler = None
+
+    def __del__(self):
+        self.teardown()
 
     _underscorer1 = re.compile(r'(.)([A-Z][a-z]+)')
     _underscorer2 = re.compile(r'([a-z0-9])([A-Z])')
@@ -68,6 +74,113 @@ class BaseProxyInterface:
 
     def _add_property(self, intr_property):
         raise NotImplementedError('this must be implemented in the inheriting class')
+
+    def _add_signal(self, intr_signal):
+        def on_signal_fn(fn):
+            fn_signature = inspect.signature(fn)
+            if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
+                raise TypeError(
+                    f'reply_notify must be a function with {len(intr_signal.args)} parameters')
+
+            if intr_signal.name not in self._signal_handlers:
+                self._signal_handlers[intr_signal.name] = []
+
+            self._signal_handlers[intr_signal.name].append(fn)
+
+        def off_signal_fn(fn):
+            try:
+                i = self._signal_handlers[intr_signal.name].index(fn)
+                del self._signal_handlers[intr_signal.name][i]
+            except (KeyError, ValueError):
+                pass
+
+        snake_case = BaseProxyInterface._to_snake_case(intr_signal.name)
+        setattr(self, f'on_{snake_case}', on_signal_fn)
+        setattr(self, f'off_{snake_case}', off_signal_fn)
+
+    @staticmethod
+    def message_handler(weakref_self, msg):
+        just_self = weakref_self()
+        if not just_self:
+            return
+
+        if msg._matches(message_type=MessageType.SIGNAL,
+                        interface=just_self.introspection.name,
+                        path=just_self.path) and msg.member in just_self._signal_handlers:
+            if msg.sender != just_self.bus_name and just_self.bus._name_owners.get(
+                    just_self.bus_name, '') != msg.sender:
+                return
+            match = [s for s in just_self.introspection.signals if s.name == msg.member]
+            if not len(match):
+                return
+            intr_signal = match[0]
+            if intr_signal.signature != msg.signature:
+                logging.warning(
+                    f'got signal "{just_self.introspection.name}.{msg.member}" with unexpected signature '
+                    f'"{msg.signature}"')
+                return
+
+            for handler in just_self._signal_handlers[msg.member]:
+                handler(*msg.body)
+
+    @property
+    def match_rule(self):
+        return f"type='signal',sender={self.bus_name},interface={self.introspection.name},path={self.path}"
+
+    def add_match_notify(self, msg, err):
+        if err:
+            logging.error(f'add match request failed. match="{self.match_rule}", {err}')
+        if msg.message_type == MessageType.ERROR:
+            logging.error(f'add match request failed. match="{self.match_rule}", {msg.body[0]}')
+
+    def remove_match_notify(self, msg, err):
+        if err:
+            logging.error(f'remove match request failed. match="{self.match_rule}", {err}')
+        if msg.message_type == MessageType.ERROR:
+            logging.error(f'remove match request failed. match="{self.match_rule}", {msg.body[0]}')
+
+    def add_match_rule(self):
+        self.bus._call(
+            Message(destination='org.freedesktop.DBus',
+                    interface='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='AddMatch',
+                    signature='s',
+                    body=[self.match_rule]), self.add_match_notify)
+
+    def remove_match_rule(self):
+        self.bus._call(
+            Message(destination='org.freedesktop.DBus',
+                    interface='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='RemoveMatch',
+                    signature='s',
+                    body=[self.match_rule]), self.remove_match_notify)
+
+    def add_message_handler(self):
+        self.__added_handler = functools.partial(self.message_handler, weakref.ref(self))
+        self.bus.add_message_handler(self.__added_handler)
+
+    def remove_message_handler(self):
+        self.bus.remove_message_handler(self.__added_handler)
+        self.__added_handler = None
+
+    def __setup_from_introspection(self):
+        for intr_method in self.introspection.methods:
+            self._add_method(intr_method)
+        for intr_property in self.introspection.properties:
+            self._add_property(intr_property)
+        for intr_signal in self.introspection.signals:
+            self._add_signal(intr_signal)
+
+    def setup(self):
+        self.__setup_from_introspection()
+        self.add_match_rule()
+        self.add_message_handler()
+
+    def teardown(self):
+        self.remove_match_rule()
+        self.remove_message_handler()
 
 
 class BaseProxyObject:
@@ -104,7 +217,6 @@ class BaseProxyObject:
         - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
         - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the introspection data for the node is not valid.
     """
-
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
                  bus: 'message_bus.BaseMessageBus', ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)
@@ -132,7 +244,6 @@ class BaseProxyObject:
         self.child_paths = [f'{path}/{n.name}' for n in self.introspection.nodes]
 
         self._interfaces = {}
-        self._signal_handlers = {}
 
         # lazy loaded by get_children()
         self._children = None
@@ -156,19 +267,6 @@ class BaseProxyObject:
 
         interface = self.ProxyInterface(self.bus_name, self.path, intr_interface, self.bus)
 
-        for intr_method in intr_interface.methods:
-            interface._add_method(intr_method)
-        for intr_property in intr_interface.properties:
-            interface._add_property(intr_property)
-        for intr_signal in intr_interface.signals:
-            self._add_signal(intr_signal, interface)
-
-        def add_match_notify(msg, err):
-            if err:
-                logging.error(f'add match request failed. match="{match_rule}", {err}')
-            if msg.message_type == MessageType.ERROR:
-                logging.error(f'add match request failed. match="{match_rule}", {msg.body[0]}')
-
         def get_owner_notify(msg, err):
             if err:
                 logging.error(f'getting name owner for "{name}" failed, {err}')
@@ -186,38 +284,10 @@ class BaseProxyObject:
                         signature='s',
                         body=[self.bus_name]), get_owner_notify)
 
-        match_rule = f"type='signal',sender={self.bus_name},interface={name},path={self.path}"
-        self.bus._call(
-            Message(destination='org.freedesktop.DBus',
-                    interface='org.freedesktop.DBus',
-                    path='/org/freedesktop/DBus',
-                    member='AddMatch',
-                    signature='s',
-                    body=[match_rule]), add_match_notify)
-
-        def message_handler(msg):
-            if msg._matches(message_type=MessageType.SIGNAL,
-                            interface=intr_interface.name,
-                            path=self.path) and msg.member in self._signal_handlers:
-                if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
-                                                                             '') != msg.sender:
-                    return
-                match = [s for s in intr_interface.signals if s.name == msg.member]
-                if not len(match):
-                    return
-                intr_signal = match[0]
-                if intr_signal.signature != msg.signature:
-                    logging.warning(
-                        f'got signal "{intr_interface.name}.{msg.member}" with unexpected signature "{msg.signature}"'
-                    )
-                    return
-
-                for handler in self._signal_handlers[msg.member]:
-                    handler(*msg.body)
-
-        self.bus.add_message_handler(message_handler)
+        interface.setup()
 
         self._interfaces[name] = interface
+
         return interface
 
     def get_children(self) -> List['BaseProxyObject']:
@@ -229,26 +299,3 @@ class BaseProxyObject:
             ]
 
         return self._children
-
-    def _add_signal(self, intr_signal, interface):
-        def on_signal_fn(fn):
-            fn_signature = inspect.signature(fn)
-            if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
-                raise TypeError(
-                    f'reply_notify must be a function with {len(intr_signal.args)} parameters')
-
-            if intr_signal.name not in self._signal_handlers:
-                self._signal_handlers[intr_signal.name] = []
-
-            self._signal_handlers[intr_signal.name].append(fn)
-
-        def off_signal_fn(fn):
-            try:
-                i = self._signal_handlers[intr_signal.name].index(fn)
-                del self._signal_handlers[intr_signal.name][i]
-            except (KeyError, ValueError):
-                pass
-
-        snake_case = BaseProxyInterface._to_snake_case(intr_signal.name)
-        setattr(interface, f'on_{snake_case}', on_signal_fn)
-        setattr(interface, f'off_{snake_case}', off_signal_fn)
