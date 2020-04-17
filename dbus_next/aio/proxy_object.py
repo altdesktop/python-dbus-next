@@ -1,3 +1,5 @@
+import logging
+
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
 from ..message import Message
@@ -65,7 +67,6 @@ class ProxyInterface(BaseProxyInterface):
     If the service returns an error for a DBus call, a :class:`DBusError
     <dbus_next.DBusError>` will be raised with information about the error.
     """
-
     def _add_method(self, intr_method):
         async def method_fn(*args):
             msg = await self.bus.call(
@@ -121,6 +122,14 @@ class ProxyInterface(BaseProxyInterface):
         snake_case = BaseProxyInterface._to_snake_case(intr_property.name)
         setattr(self, f'get_{snake_case}', property_getter)
         setattr(self, f'set_{snake_case}', property_setter)
+
+    def _teardown(self):
+        loop = self.bus._loop
+        try:
+            loop.call_soon_threadsafe(BaseProxyInterface._safe_teardown, self.bus,
+                                      self._added_handler, self._match_rule)
+        except RuntimeError as e:
+            logging.warning(f'Runtime error while calling teardown: {e}')
 
 
 class ProxyObject(BaseProxyObject):

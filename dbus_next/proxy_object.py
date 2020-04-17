@@ -46,10 +46,14 @@ class BaseProxyInterface:
         self.introspection = introspection
         self.bus = bus
         self._signal_handlers = {}
-        self.__added_handler = None
+        self._added_handler = None
 
     def __del__(self):
-        self.teardown()
+        try:
+            self._teardown()
+        except Exception:
+            logging.exception(f'Error while garbage collecting')
+            raise
 
     _underscorer1 = re.compile(r'(.)([A-Z][a-z]+)')
     _underscorer2 = re.compile(r'([a-z0-9])([A-Z])')
@@ -99,7 +103,7 @@ class BaseProxyInterface:
         setattr(self, f'off_{snake_case}', off_signal_fn)
 
     @staticmethod
-    def message_handler(weakref_self, msg):
+    def __message_handler(weakref_self, msg):
         just_self = weakref_self()
         if not just_self:
             return
@@ -124,46 +128,48 @@ class BaseProxyInterface:
                 handler(*msg.body)
 
     @property
-    def match_rule(self):
+    def _match_rule(self):
         return f"type='signal',sender={self.bus_name},interface={self.introspection.name},path={self.path}"
 
-    def add_match_notify(self, msg, err):
+    def __add_match_notify(self, msg, err):
         if err:
-            logging.error(f'add match request failed. match="{self.match_rule}", {err}')
+            logging.error(f'add match request failed. match="{self._match_rule}", {err}')
         if msg.message_type == MessageType.ERROR:
-            logging.error(f'add match request failed. match="{self.match_rule}", {msg.body[0]}')
+            logging.error(f'add match request failed. match="{self._match_rule}", {msg.body[0]}')
 
-    def remove_match_notify(self, msg, err):
-        if err:
-            logging.error(f'remove match request failed. match="{self.match_rule}", {err}')
-        if msg.message_type == MessageType.ERROR:
-            logging.error(f'remove match request failed. match="{self.match_rule}", {msg.body[0]}')
-
-    def add_match_rule(self):
+    def __add_match_rule(self):
         self.bus._call(
             Message(destination='org.freedesktop.DBus',
                     interface='org.freedesktop.DBus',
                     path='/org/freedesktop/DBus',
                     member='AddMatch',
                     signature='s',
-                    body=[self.match_rule]), self.add_match_notify)
+                    body=[self._match_rule]), self.__add_match_notify)
 
-    def remove_match_rule(self):
-        self.bus._call(
+    @staticmethod
+    def __remove_match_notify(msg, err):
+        if err:
+            logging.error(f'remove match request failed, {err}')
+        if msg.message_type == MessageType.ERROR:
+            logging.error(f'remove match request failed, {msg.body[0]}')
+
+    @staticmethod
+    def __remove_match_rule(bus, match_rule):
+        bus._call(
             Message(destination='org.freedesktop.DBus',
                     interface='org.freedesktop.DBus',
                     path='/org/freedesktop/DBus',
                     member='RemoveMatch',
                     signature='s',
-                    body=[self.match_rule]), self.remove_match_notify)
+                    body=[match_rule]), BaseProxyInterface.__remove_match_notify)
 
-    def add_message_handler(self):
-        self.__added_handler = functools.partial(self.message_handler, weakref.ref(self))
-        self.bus.add_message_handler(self.__added_handler)
+    def __add_message_handler(self):
+        self._added_handler = functools.partial(self.__message_handler, weakref.ref(self))
+        self.bus.add_message_handler(self._added_handler)
 
-    def remove_message_handler(self):
-        self.bus.remove_message_handler(self.__added_handler)
-        self.__added_handler = None
+    @staticmethod
+    def __remove_message_handler(bus, handler):
+        bus.remove_message_handler(handler)
 
     def __setup_from_introspection(self):
         for intr_method in self.introspection.methods:
@@ -173,14 +179,18 @@ class BaseProxyInterface:
         for intr_signal in self.introspection.signals:
             self._add_signal(intr_signal)
 
-    def setup(self):
+    def _setup(self):
         self.__setup_from_introspection()
-        self.add_match_rule()
-        self.add_message_handler()
+        self.__add_match_rule()
+        self.__add_message_handler()
 
-    def teardown(self):
-        self.remove_match_rule()
-        self.remove_message_handler()
+    @staticmethod
+    def _safe_teardown(bus, handler, match_rule):
+        BaseProxyInterface.__remove_message_handler(bus, handler)
+        BaseProxyInterface.__remove_match_rule(bus, match_rule)
+
+    def _teardown(self):
+        self._safe_teardown(self.bus, self._added_handler, self._match_rule)
 
 
 class BaseProxyObject:
@@ -284,7 +294,7 @@ class BaseProxyObject:
                         signature='s',
                         body=[self.bus_name]), get_owner_notify)
 
-        interface.setup()
+        interface._setup()
 
         self._interfaces[name] = interface
 
