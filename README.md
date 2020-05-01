@@ -81,7 +81,7 @@ To define a service on the bus, use the `ServiceInterface` class and decorate cl
 For more information, see the [overview for the high-level service](https://python-dbus-next.readthedocs.io/en/latest/high-level-service/index.html).
 
 ```python
-from dbus_next import ServiceInterface, method, dbus_property, signal, Variant
+from dbus_next.service import ServiceInterface, method, dbus_property, signal, Variant
 from dbus_next.aio MessageBus
 
 import asyncio
