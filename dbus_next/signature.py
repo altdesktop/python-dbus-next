@@ -166,7 +166,7 @@ class SignatureType:
         UINT64_MAX = 18446744073709551615
         if not isinstance(body, int):
             raise SignatureBodyMismatchError(
-                f'DBus UINT64 type "t" must be Python type "int", got{type(body)}')
+                f'DBus UINT64 type "t" must be Python type "int", got {type(body)}')
         elif body > UINT64_MAX or body < UINT64_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus UINT64 type "t" must be between {UINT64_MIN} and {UINT64_MAX}')
