@@ -100,20 +100,23 @@ class SignatureType:
         BYTE_MIN = 0x00
         BYTE_MAX = 0xff
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus BYTE type "y" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus BYTE type "y" must be Python type "int", got {type(body)}')
         if body < BYTE_MIN or body > BYTE_MAX:
             raise SignatureBodyMismatchError(
                 f'DBus BYTE type must be between {BYTE_MIN} and {BYTE_MAX}')
 
     def _verify_boolean(self, body):
         if not isinstance(body, bool):
-            raise SignatureBodyMismatchError('DBus BOOLEAN type "b" must be Python type "bool"')
+            raise SignatureBodyMismatchError(
+                f'DBus BOOLEAN type "b" must be Python type "bool", got {type(body)}')
 
     def _verify_int16(self, body):
         INT16_MIN = -0x7fff - 1
         INT16_MAX = 0x7fff
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus INT16 type "n" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus INT16 type "n" must be Python type "int", got {type(body)}')
         elif body > INT16_MAX or body < INT16_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus INT16 type "n" must be between {INT16_MIN} and {INT16_MAX}')
@@ -122,7 +125,8 @@ class SignatureType:
         UINT16_MIN = 0
         UINT16_MAX = 0xffff
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus UINT16 type "q" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus UINT16 type "q" must be Python type "int", got {type(body)}')
         elif body > UINT16_MAX or body < UINT16_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus UINT16 type "q" must be between {UINT16_MIN} and {UINT16_MAX}')
@@ -131,7 +135,8 @@ class SignatureType:
         INT32_MIN = -0x7fffffff - 1
         INT32_MAX = 0x7fffffff
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus INT32 type "i" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus INT32 type "i" must be Python type "int", got {type(body)}')
         elif body > INT32_MAX or body < INT32_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus INT32 type "i" must be between {INT32_MIN} and {INT32_MAX}')
@@ -140,7 +145,8 @@ class SignatureType:
         UINT32_MIN = 0
         UINT32_MAX = 0xffffffff
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus UINT32 type "u" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus UINT32 type "u" must be Python type "int", got {type(body)}')
         elif body > UINT32_MAX or body < UINT32_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus UINT32 type "u" must be between {UINT32_MIN} and {UINT32_MAX}')
@@ -149,7 +155,8 @@ class SignatureType:
         INT64_MAX = 9223372036854775807
         INT64_MIN = -INT64_MAX - 1
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus INT64 type "x" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus INT64 type "x" must be Python type "int", got {type(body)}')
         elif body > INT64_MAX or body < INT64_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus INT64 type "x" must be between {INT64_MIN} and {INT64_MAX}')
@@ -158,7 +165,8 @@ class SignatureType:
         UINT64_MIN = 0
         UINT64_MAX = 18446744073709551615
         if not isinstance(body, int):
-            raise SignatureBodyMismatchError('DBus UINT64 type "t" must be Python type "int"')
+            raise SignatureBodyMismatchError(
+                f'DBus UINT64 type "t" must be Python type "int", got {type(body)}')
         elif body > UINT64_MAX or body < UINT64_MIN:
             raise SignatureBodyMismatchError(
                 f'DBus UINT64 type "t" must be between {UINT64_MIN} and {UINT64_MAX}')
@@ -166,7 +174,7 @@ class SignatureType:
     def _verify_double(self, body):
         if not isinstance(body, float) and not isinstance(body, int):
             raise SignatureBodyMismatchError(
-                'DBus DOUBLE type "d" must be Python type "float" or "int"')
+                f'DBus DOUBLE type "d" must be Python type "float" or "int", got {type(body)}')
 
     def _verify_unix_fd(self, body):
         try:
@@ -181,12 +189,14 @@ class SignatureType:
 
     def _verify_string(self, body):
         if not isinstance(body, str):
-            raise SignatureBodyMismatchError('DBus STRING type "s" must be Python type "str"')
+            raise SignatureBodyMismatchError(
+                f'DBus STRING type "s" must be Python type "str", got {type(body)}')
 
     def _verify_signature(self, body):
         # I guess we could run it through the SignatureTree parser instead
         if not isinstance(body, str):
-            raise SignatureBodyMismatchError('DBus SIGNATURE type "g" must be Python type "str"')
+            raise SignatureBodyMismatchError(
+                f'DBus SIGNATURE type "g" must be Python type "str", got {type(body)}')
         if len(body.encode()) > 0xff:
             raise SignatureBodyMismatchError('DBus SIGNATURE type "g" must be less than 256 bytes')
 
@@ -196,25 +206,29 @@ class SignatureType:
         if child_type.token == '{':
             if not isinstance(body, dict):
                 raise SignatureBodyMismatchError(
-                    'DBus ARRAY type "a" with DICT_ENTRY child must be Python type "dict"')
+                    f'DBus ARRAY type "a" with DICT_ENTRY child must be Python type "dict", got {type(body)}'
+                )
             for key, value in body.items():
                 child_type.children[0].verify(key)
                 child_type.children[1].verify(value)
         elif child_type.token == 'y':
             if not isinstance(body, bytes):
                 raise SignatureBodyMismatchError(
-                    'DBus ARRAY type "a" with BYTE child must be Python type "bytes"')
+                    f'DBus ARRAY type "a" with BYTE child must be Python type "bytes", got {type(body)}'
+                )
                 # no need to verify children
         else:
             if not isinstance(body, list):
-                raise SignatureBodyMismatchError('DBus ARRAY type "a" must be Python type "list"')
+                raise SignatureBodyMismatchError(
+                    f'DBus ARRAY type "a" must be Python type "list", got {type(body)}')
             for member in body:
                 child_type.verify(member)
 
     def _verify_struct(self, body):
         # TODO allow tuples
         if not isinstance(body, list):
-            raise SignatureBodyMismatchError('DBus STRUCT type "(" must be Python type "list"')
+            raise SignatureBodyMismatchError(
+                f'DBus STRUCT type "(" must be Python type "list", got {type(body)}')
 
         if len(body) != len(self.children):
             raise SignatureBodyMismatchError(
@@ -227,7 +241,8 @@ class SignatureType:
     def _verify_variant(self, body):
         # a variant signature and value is valid by construction
         if not isinstance(body, Variant):
-            raise SignatureBodyMismatchError('DBus VARIANT type "v" must be Python type "Variant"')
+            raise SignatureBodyMismatchError(
+                f'DBus VARIANT type "v" must be Python type "Variant", got {type(body)}')
 
     def verify(self, body: Any) -> bool:
         """Verify that the body matches this type.
@@ -291,7 +306,6 @@ class SignatureTree:
     :raises:
         :class:`InvalidSignatureError` if the given signature is not valid.
     """
-
     def __init__(self, signature: str = ''):
         self.signature = signature
 
@@ -353,7 +367,6 @@ class Variant:
         :class:`InvalidSignatureError` if the signature is not valid.
         :class:`SignatureBodyMismatchError` if the signature does not match the body.
     """
-
     def __init__(self, signature: Union[str, SignatureTree, SignatureType], value: Any):
         signature_str = ''
         signature_tree = None
