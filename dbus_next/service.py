@@ -356,15 +356,15 @@ class ServiceInterface:
                 raise ValueError(f'property "{member.name}" is writable but does not have a setter')
 
     def emit_properties_changed(self,
-                                changed_properties: Dict[str, Any],
+                                changed_properties: List[str],
                                 invalidated_properties: List[str] = []):
         """Emit the ``org.freedesktop.DBus.Properties.PropertiesChanged`` signal.
 
         This signal is intended to be used to alert clients when a property of
         the interface has changed.
 
-        :param changed_properties: The keys must be the names of properties exposed by this bus. The values must be valid for the signature of those properties.
-        :type changed_properties: dict(str, Any)
+        :param changed_properties: A list of names of properties exposed by this bus.
+        :type changed_properties: list(str)
         :param invalidated_properties: A list of names of properties that are now invalid (presumably for clients who cache the value).
         :type invalidated_properties: list(str)
         """
@@ -373,7 +373,7 @@ class ServiceInterface:
 
         for prop in ServiceInterface._get_properties(self):
             if prop.name in changed_properties:
-                variant_dict[prop.name] = Variant(prop.signature, changed_properties[prop.name])
+                variant_dict[prop.name] = Variant(prop.signature, getattr(self, prop.name))
 
         body = [self.name, variant_dict, invalidated_properties]
         for bus in ServiceInterface._get_buses(self):
