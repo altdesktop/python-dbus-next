@@ -560,16 +560,19 @@ class BaseMessageBus:
 
                 bus.send(reply)
 
-            def __exit__(self, type, value, tb):
-                if issubclass(type, DBusError):
-                    self(value._as_message(msg))
+            def __exit__(self, exc_type, exc_value, tb):
+                if exc_type is None:
+                    return
+
+                if issubclass(exc_type, DBusError):
+                    self(exc_value._as_message(msg))
                     return True
 
-                if issubclass(type, Exception):
+                if issubclass(exc_type, Exception):
                     self(
                         Message.new_error(
                             msg, ErrorType.SERVICE_ERROR,
-                            f'The service interface raised an error: {value}.\n{traceback.format_tb(tb)}'
+                            f'The service interface raised an error: {exc_value}.\n{traceback.format_tb(tb)}'
                         ))
                     return True
 
