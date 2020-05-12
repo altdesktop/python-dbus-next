@@ -745,11 +745,27 @@ class BaseMessageBus:
                 ErrorType.NOT_SUPPORTED,
                 'getting and setting properties with an empty interface string is not supported yet'
             )
+
         elif msg.path not in self._path_exports:
             raise DBusError(ErrorType.UNKNOWN_OBJECT, f'no interfaces at path: "{msg.path}"')
 
         match = [iface for iface in self._path_exports[msg.path] if iface.name == interface_name]
         if not match:
+            if interface_name in [
+                    'org.freedesktop.DBus.Properties', 'org.freedesktop.DBus.Introspectable',
+                    'org.freedesktop.DBus.Peer', 'org.freedesktop.DBus.ObjectManager'
+            ]:
+                # the standard interfaces do not have properties
+                if msg.member == 'Get' or msg.member == 'Set':
+                    prop_name = msg.body[1]
+                    raise DBusError(
+                        ErrorType.UNKNOWN_PROPERTY,
+                        f'interface "{interface_name}" does not have property "{prop_name}"')
+                elif msg.member == 'GetAll':
+                    send_reply(Message.new_method_return(msg, 'a{sv}', [{}]))
+                    return
+                else:
+                    assert False
             raise DBusError(
                 ErrorType.UNKNOWN_INTERFACE,
                 f'could not find an interface "{interface_name}" at path: "{msg.path}"')
@@ -763,7 +779,7 @@ class BaseMessageBus:
             if not match:
                 raise DBusError(
                     ErrorType.UNKNOWN_PROPERTY,
-                    f'interface "{msg.interface}" does not have property "{prop_name}"')
+                    f'interface "{interface_name}" does not have property "{prop_name}"')
 
             prop = match[0]
             if msg.member == 'Get':
