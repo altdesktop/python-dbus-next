@@ -316,7 +316,6 @@ class ServiceInterface:
         valid interface name.
     :vartype name: str
     """
-
     def __init__(self, name: str):
         # TODO cannot be overridden by a dbus member
         self.name = name

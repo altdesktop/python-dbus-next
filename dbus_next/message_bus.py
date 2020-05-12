@@ -44,7 +44,6 @@ class BaseMessageBus:
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -204,7 +203,8 @@ class BaseMessageBus:
 
         for prop in properties:
             with suppress(Exception):
-                body[interface.name][prop.name] = Variant(prop.signature, prop.prop_getter(interface))
+                body[interface.name][prop.name] = Variant(prop.signature,
+                                                          prop.prop_getter(interface))
 
         self.send(
             Message.new_signal(path=path,
@@ -234,8 +234,8 @@ class BaseMessageBus:
     def request_name(self,
                      name: str,
                      flags: NameFlag = NameFlag.NONE,
-                     callback: Optional[
-                         Callable[[Optional[RequestNameReply], Optional[Exception]], None]] = None):
+                     callback: Optional[Callable[[Optional[RequestNameReply], Optional[Exception]],
+                                                 None]] = None):
         """Request that this message bus owns the given name.
 
         :param name: The name to request.
@@ -277,8 +277,8 @@ class BaseMessageBus:
 
     def release_name(self,
                      name: str,
-                     callback: Optional[
-                         Callable[[Optional[ReleaseNameReply], Optional[Exception]], None]] = None):
+                     callback: Optional[Callable[[Optional[ReleaseNameReply], Optional[Exception]],
+                                                 None]] = None):
         """Request that this message bus release the given name.
 
         :param name: The name to release.
