@@ -13,9 +13,7 @@ test:
 	dbus-run-session pytest -s
 
 docker-test:
-	docker build -t dbus-next37  --build-arg interpreter=python3.7 .
 	docker build -t dbus-next38  --build-arg interpreter=python3.8 .
-	docker run -it dbus-next37
 	docker run -it dbus-next38
 
 coverage:
