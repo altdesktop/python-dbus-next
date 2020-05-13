@@ -218,11 +218,9 @@ class MessageBus(BaseMessageBus):
         :returns: A message in reply to the message sent. If the message does
             not expect a reply based on the message flags or type, returns
             ``None`` immediately.
-        :rtype: :class:`Message <dbus_next.Message>`
+        :rtype: :class:`Message <dbus_next.Message>` or :class:`None` if no reply is expected.
 
         :raises:
-            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
-                  an error for the method call or returned an invalid result.
             - :class:`Exception` - If a connection error occurred.
         """
         if msg.flags & MessageFlag.NO_REPLY_EXPECTED or msg.message_type is not MessageType.METHOD_CALL:

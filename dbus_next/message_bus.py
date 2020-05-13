@@ -397,11 +397,14 @@ class BaseMessageBus:
                 del self._user_message_handlers[i]
                 break
 
-    def send(self, msg: Message):
+    def send(self, msg: Message) -> None:
         """Asynchronously send a message on the message bus.
 
         :param msg: The message to send.
         :type msg: :class:`Message <dbus_next.Message>`
+
+        :raises:
+            - :class:`Exception` - If a connection error occurred.
         """
         raise NotImplementedError('the "send" method must be implemented in the inheriting class')
 
