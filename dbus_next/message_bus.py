@@ -414,6 +414,8 @@ class BaseMessageBus:
         if self._disconnected:
             return
 
+        self._disconnected = True
+
         for handler in self._method_return_handlers.values():
             handler(None, err)
 
@@ -422,7 +424,7 @@ class BaseMessageBus:
         for path in list(self._path_exports.keys()):
             self.unexport(path)
 
-        self._disconnected = True
+        self._user_message_handlers.clear()
 
     def _has_interface(self, interface: ServiceInterface) -> bool:
         for _, exports in self._path_exports.items():

@@ -23,6 +23,10 @@ async def test_signals():
     bus1 = await MessageBus().connect()
     bus2 = await MessageBus().connect()
 
+    bus_intr = await bus1.introspect('org.freedesktop.DBus', '/org/freedesktop/DBus')
+    bus_obj = bus1.get_proxy_object('org.freedesktop.DBus', '/org/freedesktop/DBus', bus_intr)
+    stats = bus_obj.get_interface('org.freedesktop.DBus.Debug.Stats')
+
     await bus1.request_name('test.signals.name')
     service_interface = ExampleInterface()
     bus1.export('/test/path', service_interface)
@@ -64,9 +68,27 @@ async def test_signals():
             err = e
 
     await ping()
+    match_rules = await stats.call_get_all_match_rules()
+    assert bus2.unique_name in match_rules
+    bus_match_rules = match_rules[bus2.unique_name]
+    # the bus connection itself takes a rule on NameOwnerChange
+    assert len(bus_match_rules) == 1
+    assert len(bus2._user_message_handlers) == 0
 
     interface.on_some_signal(single_handler)
     interface.on_signal_multiple(multiple_handler)
+
+    # Interlude: adding a signal handler with `on_[signal]` should add a match rule and
+    # message handler. Removing a signal handler with `off_[signal]` should
+    # remove the match rule and message handler to avoid memory leaks.
+    await ping()
+    match_rules = await stats.call_get_all_match_rules()
+    assert bus2.unique_name in match_rules
+    bus_match_rules = match_rules[bus2.unique_name]
+    # test the match rule and user handler has been added
+    assert len(bus_match_rules) == 2
+    assert "type='signal',interface='test.interface',path='/test/path',sender='test.signals.name'" in bus_match_rules
+    assert len(bus2._user_message_handlers) == 1
 
     service_interface.SomeSignal()
     await ping()
@@ -97,3 +119,19 @@ async def test_signals():
     await ping()
     # single_counter is not incremented for signals of the second interface
     assert single_counter == 1
+
+    interface.off_some_signal(single_handler)
+    interface.off_signal_multiple(multiple_handler)
+
+    # After `off_[signal]`, the match rule and user handler should be removed
+    await ping()
+    match_rules = await stats.call_get_all_match_rules()
+    assert bus2.unique_name in match_rules
+    bus_match_rules = match_rules[bus2.unique_name]
+    assert len(bus_match_rules) == 1
+    assert not "type='signal',interface='test.interface',path='/test/path',sender='test.signals.name'" in bus_match_rules
+    assert len(bus2._user_message_handlers) == 0
+
+    bus1.disconnect()
+    bus2.disconnect()
+    bus3.disconnect()
