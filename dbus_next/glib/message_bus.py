@@ -205,13 +205,12 @@ class MessageBus(BaseMessageBus):
                                 member='Hello',
                                 serial=self.next_serial())
 
-            match = "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',path='/org/freedesktop/DBus',member='NameOwnerChanged'"
             add_match_msg = Message(destination='org.freedesktop.DBus',
                                     path='/org/freedesktop/DBus',
                                     interface='org.freedesktop.DBus',
                                     member='AddMatch',
                                     signature='s',
-                                    body=[match],
+                                    body=[self._name_owner_match_rule],
                                     serial=self.next_serial())
 
             self._method_return_handlers[hello_msg.serial] = on_hello

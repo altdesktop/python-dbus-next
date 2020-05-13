@@ -63,6 +63,10 @@ class BaseMessageBus:
         self._path_exports = {}
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
+        # the bus implementations need this rule to work correctly
+        self._name_owner_match_rule = "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',path='/org/freedesktop/DBus',member='NameOwnerChanged'"
+        # _match_rules: the keys are match rules and the values are ref counts
+        self._match_rules = {}
         self._ProxyObject = ProxyObject
 
         # machine id is lazy loaded
@@ -827,3 +831,52 @@ class BaseMessageBus:
                                                                 prop.prop_getter.__name__))
 
         return result
+
+    def _add_match_rule(self, match_rule):
+        if match_rule == self._name_owner_match_rule:
+            return
+
+        if match_rule in self._match_rules:
+            self._match_rules[match_rule] += 1
+            return
+
+        self._match_rules[match_rule] = 1
+
+        def add_match_notify(msg, err):
+            if err:
+                logging.error(f'add match request failed. match="{match_rule}", {err}')
+            if msg.message_type == MessageType.ERROR:
+                logging.error(f'add match request failed. match="{match_rule}", {msg.body[0]}')
+
+        self._call(
+            Message(destination='org.freedesktop.DBus',
+                    interface='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='AddMatch',
+                    signature='s',
+                    body=[match_rule]), add_match_notify)
+
+    def _remove_match_rule(self, match_rule):
+        if match_rule == self._name_owner_match_rule:
+            return
+
+        if match_rule in self._match_rules:
+            self._match_rules[match_rule] -= 1
+            if self._match_rules[match_rule] > 0:
+                return
+
+        del self._match_rules[match_rule]
+
+        def remove_match_notify(msg, err):
+            if err:
+                logging.error(f'remove match request failed. match="{match_rule}", {err}')
+            if msg.message_type == MessageType.ERROR:
+                logging.error(f'remove match request failed. match="{match_rule}", {msg.body[0]}')
+
+        self._call(
+            Message(destination='org.freedesktop.DBus',
+                    interface='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='RemoveMatch',
+                    signature='s',
+                    body=[match_rule]), remove_match_notify)

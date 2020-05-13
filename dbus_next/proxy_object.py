@@ -90,44 +90,6 @@ class BaseProxyInterface:
             for handler in self._signal_handlers[msg.member]:
                 handler(*msg.body)
 
-    def _add_match_rule(self):
-        def add_match_notify(msg, err):
-            if err:
-                logging.error(f'add match request failed. match="{self._signal_match_rule}", {err}')
-            if msg.message_type == MessageType.ERROR:
-                logging.error(
-                    f'add match request failed. match="{self._signal_match_rule}", {msg.body[0]}')
-
-        self.bus._call(
-            Message(destination='org.freedesktop.DBus',
-                    interface='org.freedesktop.DBus',
-                    path='/org/freedesktop/DBus',
-                    member='AddMatch',
-                    signature='s',
-                    body=[self._signal_match_rule]), add_match_notify)
-
-        self.bus.add_message_handler(self._message_handler)
-
-    def _remove_match_rule(self):
-        def remove_match_notify(msg, err):
-            if err:
-                logging.error(
-                    f'remove match request failed. match="{self._signal_match_rule}", {err}')
-            if msg.message_type == MessageType.ERROR:
-                logging.error(
-                    f'remove match request failed. match="{self._signal_match_rule}", {msg.body[0]}'
-                )
-
-        self.bus._call(
-            Message(destination='org.freedesktop.DBus',
-                    interface='org.freedesktop.DBus',
-                    path='/org/freedesktop/DBus',
-                    member='RemoveMatch',
-                    signature='s',
-                    body=[self._signal_match_rule]), remove_match_notify)
-
-        self.bus.remove_message_handler(self._message_handler)
-
     def _add_signal(self, intr_signal, interface):
         def on_signal_fn(fn):
             fn_signature = inspect.signature(fn)
@@ -136,7 +98,8 @@ class BaseProxyInterface:
                     f'reply_notify must be a function with {len(intr_signal.args)} parameters')
 
             if not self._signal_handlers:
-                self._add_match_rule()
+                self.bus._add_match_rule(self._signal_match_rule)
+                self.bus.add_message_handler(self._message_handler)
 
             if intr_signal.name not in self._signal_handlers:
                 self._signal_handlers[intr_signal.name] = []
@@ -153,7 +116,8 @@ class BaseProxyInterface:
                 return
 
             if not self._signal_handlers:
-                self._remove_match_rule()
+                self.bus._remove_match_rule(self._signal_match_rule)
+                self.bus.remove_message_handler(self._message_handler)
 
         snake_case = BaseProxyInterface._to_snake_case(intr_signal.name)
         setattr(interface, f'on_{snake_case}', on_signal_fn)
