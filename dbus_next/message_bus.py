@@ -198,6 +198,9 @@ class BaseMessageBus:
         :type interface: :class:`ServiceInterface
             <dbus_next.service.ServiceInterface>`
         """
+        if self._disconnected:
+            return
+
         body = {interface.name: {}}
         properties = interface._get_properties(interface)
 
@@ -224,6 +227,9 @@ class BaseMessageBus:
         :param removed_interfaces: List of unexported service interfaces.
         :type removed_interfaces: list[str]
         """
+        if self._disconnected:
+            return
+
         self.send(
             Message.new_signal(path=path,
                                interface='org.freedesktop.DBus.ObjectManager',
