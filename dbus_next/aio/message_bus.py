@@ -3,10 +3,10 @@ from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
 from ..service import ServiceInterface
-from .._private.auth import auth_external, auth_parse_line, auth_begin, AuthResponse
 from ..errors import AuthError, DBusError
 from .proxy_object import ProxyObject
 from .. import introspection as intr
+from ..auth import Authenticator, AuthExternal
 
 import logging
 import asyncio
@@ -29,15 +29,25 @@ class MessageBus(BaseMessageBus):
     :type bus_type: :class:`BusType <dbus_next.BusType>`
     :param bus_address: A specific bus address to connect to. Should not be
         used under normal circumstances.
+    :param auth: The authenticator to use, defaults to an instance of
+        :class:`AuthExternal <dbus_next.auth.AuthExternal>`.
+    :type auth: :class:`Authenticator <dbus_next.auth.Authenticator>`
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
+    def __init__(self,
+                 bus_address: str = None,
+                 bus_type: BusType = BusType.SESSION,
+                 auth: Authenticator = None):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
+        if auth is None:
+            self._auth = AuthExternal()
+        else:
+            self._auth = auth
 
     async def connect(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
@@ -52,17 +62,9 @@ class MessageBus(BaseMessageBus):
               the DBus daemon failed.
             - :class:`Exception` - If there was a connection error.
         """
+        await self._authenticate()
+
         future = self._loop.create_future()
-
-        await self._loop.sock_sendall(self._sock, b'\0')
-        await self._loop.sock_sendall(self._sock, auth_external())
-        response, args = auth_parse_line(await self._auth_readline())
-
-        if response != AuthResponse.OK:
-            raise AuthError(f'authorization failed: {response.value}: {args}')
-
-        self._stream.write(auth_begin())
-        self._stream.flush()
 
         self._loop.add_reader(self._fd, self._message_reader)
 
@@ -81,11 +83,11 @@ class MessageBus(BaseMessageBus):
 
         def on_match_added(reply, err):
             if err:
-                logging.error(f'adding match to "NameOwnerChanged" failed')
+                logging.error('adding match to "NameOwnerChanged" failed')
                 self.disconnect()
                 self._finalize(err)
             elif reply.message_type == MessageType.ERROR:
-                logging.error(f'adding match to "NameOwnerChanged" failed')
+                logging.error('adding match to "NameOwnerChanged" failed')
                 self.disconnect()
                 self._finalize(DBusError._from_message(reply))
 
@@ -287,4 +289,22 @@ class MessageBus(BaseMessageBus):
         buf = b''
         while buf[-2:] != b'\r\n':
             buf += await self._loop.sock_recv(self._sock, 2)
-        return buf
+        return buf[:-2].decode()
+
+    async def _authenticate(self):
+        await self._loop.sock_sendall(self._sock, b'\0')
+
+        first_line = self._auth._authentication_start()
+
+        if first_line is not None:
+            if type(first_line) is not str:
+                raise AuthError('authenticator gave response not type str')
+            await self._loop.sock_sendall(self._sock, Authenticator._format_line(first_line))
+
+        while True:
+            response = self._auth._receive_line(await self._auth_readline())
+            if response is not None:
+                await self._loop.sock_sendall(self._sock, Authenticator._format_line(response))
+                self._stream.flush()
+            if response == 'BEGIN':
+                break

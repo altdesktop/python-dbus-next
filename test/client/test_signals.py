@@ -129,7 +129,7 @@ async def test_signals():
     assert bus2.unique_name in match_rules
     bus_match_rules = match_rules[bus2.unique_name]
     assert len(bus_match_rules) == 1
-    assert not "type='signal',interface='test.interface',path='/test/path',sender='test.signals.name'" in bus_match_rules
+    assert "type='signal',interface='test.interface',path='/test/path',sender='test.signals.name'" not in bus_match_rules
     assert len(bus2._user_message_handlers) == 0
 
     bus1.disconnect()

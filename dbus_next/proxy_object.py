@@ -83,7 +83,7 @@ class BaseProxyInterface:
             intr_signal = match[0]
             if intr_signal.signature != msg.signature:
                 logging.warning(
-                    f'got signal "{intr_interface.name}.{msg.member}" with unexpected signature "{msg.signature}"'
+                    f'got signal "{self.introspection.name}.{msg.member}" with unexpected signature "{msg.signature}"'
                 )
                 return
 

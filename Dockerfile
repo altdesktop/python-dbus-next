@@ -9,6 +9,7 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
     apt update && apt install -y --no-install-recommends \
     python3-pip \
     python3 \
+    libpython3.8 \
     dbus \
     virtualenv \
     python3-gi
@@ -20,10 +21,10 @@ ARG interpreter=python3.8
 
 COPY requirements.txt .
 RUN virtualenv -p ${interpreter} env && \
-    . env/bin/activate && \
-    pip3 install -r requirements.txt
+    . ./env/bin/activate && \
+    ./env/bin/pip install -r requirements.txt
 
 ADD . /app
 
 RUN find -name __pycache__ | xargs rm -r || true
-CMD ["bash", "-c", "source env/bin/activate && dbus-run-session python -m pytest"]
+CMD ["bash", "-c", ". ./env/bin/activate && dbus-run-session ./env/bin/python -m pytest"]

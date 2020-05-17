@@ -16,6 +16,7 @@ Python DBus-Next Documentation
    validators
    constants
    errors
+   authentication
 
 Overview
 ++++++++
