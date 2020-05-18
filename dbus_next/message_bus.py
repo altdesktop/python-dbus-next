@@ -59,14 +59,22 @@ class BaseMessageBus:
         self._stream = self._sock.makefile('rwb')
         self._fd = self._sock.fileno()
         self._user_message_handlers = []
+        # the key is the name and the value is the unique name of the owner.
+        # This cache is kept up to date by the NameOwnerChanged signal and is
+        # used to route messages to the correct proxy object. (used for the
+        # high level client only)
         self._name_owners = {}
+        # used for the high level service
         self._path_exports = {}
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
-        # the bus implementations need this rule to work correctly
+        # the bus implementations need this rule for the high level client to
+        # work correctly.
         self._name_owner_match_rule = "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',path='/org/freedesktop/DBus',member='NameOwnerChanged'"
         # _match_rules: the keys are match rules and the values are ref counts
+        # (used for the high level client only)
         self._match_rules = {}
+        self._high_level_client_initialized = False
         self._ProxyObject = ProxyObject
 
         # machine id is lazy loaded
@@ -351,6 +359,8 @@ class BaseMessageBus:
         if self._ProxyObject is None:
             raise Exception('the message bus implementation did not provide a proxy object class')
 
+        self._init_high_level_client()
+
         return self._ProxyObject(bus_name, path, introspection, self)
 
     def disconnect(self):
@@ -631,8 +641,8 @@ class BaseMessageBus:
                 [name, old_owner, new_owner] = msg.body
                 if new_owner:
                     self._name_owners[name] = new_owner
-                elif old_owner in self._name_owners:
-                    del self._name_owners[old_owner]
+                elif name in self._name_owners:
+                    del self._name_owners[name]
 
         elif msg.message_type == MessageType.METHOD_CALL:
             if not handled:
@@ -832,7 +842,35 @@ class BaseMessageBus:
 
         return result
 
+    def _init_high_level_client(self):
+        '''The high level client is initialized when the first proxy object is
+        gotten. Currently just sets up the match rules for the name owner cache
+        so signals can be routed to the right objects.'''
+        if self._high_level_client_initialized:
+            return
+        self._high_level_client_initialized = True
+
+        def add_match_notify(msg, err):
+            if err:
+                logging.error(
+                    f'add match request failed. match="{self._name_owner_match_rule}", {err}')
+            if msg.message_type == MessageType.ERROR:
+                logging.error(
+                    f'add match request failed. match="{self._name_owner_match_rule}", {msg.body[0]}'
+                )
+
+        self._call(
+            Message(destination='org.freedesktop.DBus',
+                    interface='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='AddMatch',
+                    signature='s',
+                    body=[self._name_owner_match_rule]), add_match_notify)
+
     def _add_match_rule(self, match_rule):
+        '''Add a match rule. Match rules added by this function are refcounted
+        and must be removed by _remove_match_rule(). This is for use in the
+        high level client only.'''
         if match_rule == self._name_owner_match_rule:
             return
 
@@ -857,6 +895,8 @@ class BaseMessageBus:
                     body=[match_rule]), add_match_notify)
 
     def _remove_match_rule(self, match_rule):
+        '''Remove a match rule added with _add_match_rule(). This is for use in
+        the high level client only.'''
         if match_rule == self._name_owner_match_rule:
             return
 

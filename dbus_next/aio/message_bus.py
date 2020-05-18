@@ -3,7 +3,7 @@ from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
 from ..service import ServiceInterface
-from ..errors import AuthError, DBusError
+from ..errors import AuthError
 from .proxy_object import ProxyObject
 from .. import introspection as intr
 from ..auth import Authenticator, AuthExternal
@@ -81,34 +81,14 @@ class MessageBus(BaseMessageBus):
             self._buffered_messages.clear()
             future.set_result(self)
 
-        def on_match_added(reply, err):
-            if err:
-                logging.error('adding match to "NameOwnerChanged" failed')
-                self.disconnect()
-                self._finalize(err)
-            elif reply.message_type == MessageType.ERROR:
-                logging.error('adding match to "NameOwnerChanged" failed')
-                self.disconnect()
-                self._finalize(DBusError._from_message(reply))
-
         hello_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',
                             interface='org.freedesktop.DBus',
                             member='Hello',
                             serial=self.next_serial())
 
-        add_match_msg = Message(destination='org.freedesktop.DBus',
-                                path='/org/freedesktop/DBus',
-                                interface='org.freedesktop.DBus',
-                                member='AddMatch',
-                                signature='s',
-                                body=[self._name_owner_match_rule],
-                                serial=self.next_serial())
-
         self._method_return_handlers[hello_msg.serial] = on_hello
-        self._method_return_handlers[add_match_msg.serial] = on_match_added
         self._stream.write(hello_msg._marshall())
-        self._stream.write(add_match_msg._marshall())
         self._stream.flush()
 
         return await future

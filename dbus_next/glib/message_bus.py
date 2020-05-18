@@ -8,7 +8,6 @@ from .proxy_object import ProxyObject
 from .. import introspection as intr
 from ..auth import Authenticator, AuthExternal
 
-import logging
 import io
 from typing import Callable, Optional
 
@@ -197,30 +196,14 @@ class MessageBus(BaseMessageBus):
                 if connect_notify:
                     connect_notify(self, err)
 
-            def on_match_added(reply, err):
-                if err:
-                    logging.error(f'adding match to "NameOwnerChanged" failed: {err}')
-                    self.disconnect()
-                    return
-
             hello_msg = Message(destination='org.freedesktop.DBus',
                                 path='/org/freedesktop/DBus',
                                 interface='org.freedesktop.DBus',
                                 member='Hello',
                                 serial=self.next_serial())
 
-            add_match_msg = Message(destination='org.freedesktop.DBus',
-                                    path='/org/freedesktop/DBus',
-                                    interface='org.freedesktop.DBus',
-                                    member='AddMatch',
-                                    signature='s',
-                                    body=[self._name_owner_match_rule],
-                                    serial=self.next_serial())
-
             self._method_return_handlers[hello_msg.serial] = on_hello
-            self._method_return_handlers[add_match_msg.serial] = on_match_added
             self._stream.write(hello_msg._marshall())
-            self._stream.write(add_match_msg._marshall())
             self._stream.flush()
 
         self._authenticate(authenticate_notify)

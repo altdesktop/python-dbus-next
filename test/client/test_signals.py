@@ -1,6 +1,8 @@
 from dbus_next.service import ServiceInterface, signal
 from dbus_next.aio import MessageBus
 from dbus_next import Message
+from dbus_next.introspection import Node
+from dbus_next.constants import RequestNameReply
 
 import pytest
 
@@ -71,7 +73,8 @@ async def test_signals():
     match_rules = await stats.call_get_all_match_rules()
     assert bus2.unique_name in match_rules
     bus_match_rules = match_rules[bus2.unique_name]
-    # the bus connection itself takes a rule on NameOwnerChange
+    # the bus connection itself takes a rule on NameOwnerChange after the high
+    # level client is initialized
     assert len(bus_match_rules) == 1
     assert len(bus2._user_message_handlers) == 0
 
@@ -110,11 +113,15 @@ async def test_signals():
 
     obj = bus2.get_proxy_object('test.signals.name2', '/test/path',
                                 bus3._introspect_export_path('/test/path'))
-    # add the match rule
-    obj.get_interface(service_interface2.name)
+    # we have to add a dummy handler to add the match rule
+    iface2 = obj.get_interface(service_interface2.name)
+
+    def dummy_signal_handler(what):
+        pass
+
+    iface2.on_some_signal(dummy_signal_handler)
     await ping()
 
-    # note the lack of any signal handler for this signal
     service_interface2.SomeSignal()
     await ping()
     # single_counter is not incremented for signals of the second interface
@@ -122,6 +129,7 @@ async def test_signals():
 
     interface.off_some_signal(single_handler)
     interface.off_signal_multiple(multiple_handler)
+    iface2.off_some_signal(dummy_signal_handler)
 
     # After `off_[signal]`, the match rule and user handler should be removed
     await ping()
@@ -131,6 +139,73 @@ async def test_signals():
     assert len(bus_match_rules) == 1
     assert "type='signal',interface='test.interface',path='/test/path',sender='test.signals.name'" not in bus_match_rules
     assert len(bus2._user_message_handlers) == 0
+
+    bus1.disconnect()
+    bus2.disconnect()
+    bus3.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_signals_with_changing_owners():
+    well_known_name = 'test.signals.changing.name'
+
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
+    bus3 = await MessageBus().connect()
+
+    async def ping():
+        await bus1.call(
+            Message(destination=bus1.unique_name,
+                    interface='org.freedesktop.DBus.Peer',
+                    path='/test/path',
+                    member='Ping'))
+
+    service_interface = ExampleInterface()
+    introspection = Node.default()
+    introspection.interfaces.append(service_interface.introspect())
+
+    # get the interface before export
+    obj = bus1.get_proxy_object(well_known_name, '/test/path', introspection)
+    iface = obj.get_interface('test.interface')
+    counter = 0
+
+    def handler(what):
+        nonlocal counter
+        counter += 1
+
+    iface.on_some_signal(handler)
+    await ping()
+
+    # now export and get the name
+    bus2.export('/test/path', service_interface)
+    result = await bus2.request_name(well_known_name)
+    assert result is RequestNameReply.PRIMARY_OWNER
+
+    # the signal should work
+    service_interface.SomeSignal()
+    await ping()
+    assert counter == 1
+    counter = 0
+
+    # now queue up a transfer of the name
+    service_interface2 = ExampleInterface()
+    bus3.export('/test/path', service_interface2)
+    result = await bus3.request_name(well_known_name)
+    assert result is RequestNameReply.IN_QUEUE
+
+    # if it doesn't own the name, the signal shouldn't work here
+    service_interface2.SomeSignal()
+    await ping()
+    assert counter == 0
+
+    # now transfer over the name and it should work
+    bus2.disconnect()
+    await ping()
+
+    service_interface2.SomeSignal()
+    await ping()
+    assert counter == 1
+    counter = 0
 
     bus1.disconnect()
     bus2.disconnect()

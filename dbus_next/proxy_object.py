@@ -71,24 +71,31 @@ class BaseProxyInterface:
         raise NotImplementedError('this must be implemented in the inheriting class')
 
     def _message_handler(self, msg):
-        if msg._matches(message_type=MessageType.SIGNAL,
-                        interface=self.introspection.name,
-                        path=self.path) and msg.member in self._signal_handlers:
-            if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
-                                                                         '') != msg.sender:
-                return
-            match = [s for s in self.introspection.signals if s.name == msg.member]
-            if not len(match):
-                return
-            intr_signal = match[0]
-            if intr_signal.signature != msg.signature:
-                logging.warning(
-                    f'got signal "{self.introspection.name}.{msg.member}" with unexpected signature "{msg.signature}"'
-                )
-                return
+        if not msg._matches(message_type=MessageType.SIGNAL,
+                            interface=self.introspection.name,
+                            path=self.path) or msg.member not in self._signal_handlers:
+            return
 
-            for handler in self._signal_handlers[msg.member]:
-                handler(*msg.body)
+        if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
+                                                                     '') != msg.sender:
+            # The sender is always a unique name, but the bus name given might
+            # be a well known name. If the sender isn't an exact match, check
+            # to see if it owns the bus_name we were given from the cache kept
+            # on the bus for this purpose.
+            return
+
+        match = [s for s in self.introspection.signals if s.name == msg.member]
+        if not len(match):
+            return
+        intr_signal = match[0]
+        if intr_signal.signature != msg.signature:
+            logging.warning(
+                f'got signal "{self.introspection.name}.{msg.member}" with unexpected signature "{msg.signature}"'
+            )
+            return
+
+        for handler in self._signal_handlers[msg.member]:
+            handler(*msg.body)
 
     def _add_signal(self, intr_signal, interface):
         def on_signal_fn(fn):
@@ -218,12 +225,15 @@ class BaseProxyObject:
         def get_owner_notify(msg, err):
             if err:
                 logging.error(f'getting name owner for "{name}" failed, {err}')
+                return
             if msg.message_type == MessageType.ERROR:
-                logging.error(f'getting name owner for "{name}" failed, {msg.body[0]}')
+                if msg.error_name != ErrorType.NAME_HAS_NO_OWNER.value:
+                    logging.error(f'getting name owner for "{name}" failed, {msg.body[0]}')
+                return
 
             self.bus._name_owners[self.bus_name] = msg.body[0]
 
-        if self.bus_name[0] != ':':
+        if self.bus_name[0] != ':' and not self.bus._name_owners.get(self.bus_name, ''):
             self.bus._call(
                 Message(destination='org.freedesktop.DBus',
                         interface='org.freedesktop.DBus',

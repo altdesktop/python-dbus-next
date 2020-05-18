@@ -23,6 +23,8 @@ The primary methods and classes of the low-level interface are:
 - :func:`glib.MessageBus.call() <dbus_next.glib.MessageBus.call>`
 - :func:`glib.MessageBus.call_sync() <dbus_next.glib.MessageBus.call_sync>`
 
+Mixed use of the low and high level interfaces on the same bus connection is not recommended.
+
 :example: Call a standard interface
 
 .. code-block:: python3
@@ -41,7 +43,7 @@ The primary methods and classes of the low-level interface are:
 
     print(reply.body[0])
 
-:example: A custom method handler
+:example: A custom method handler. Note that to receive these messages, you must `add a match rule <https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-routing-match-rules>`_ for the types of messages you want to receive.
 
 .. code-block:: python3
 
