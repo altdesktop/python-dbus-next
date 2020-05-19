@@ -13,7 +13,11 @@ format:
 	yapf -rip $(source_dirs)
 
 test:
-	dbus-run-session python3 -m pytest -svv --cov=dbus_next
+	for py in python3.6 python3.7 python3.9 python3.8 ; do \
+		if hash $$py; then \
+			dbus-run-session $$py -m pytest -sv --cov=dbus_next || exit 1 ; \
+		fi \
+	done \
 
 docker-test:
 	docker build -t dbus-next-test .
