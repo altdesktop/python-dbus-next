@@ -84,6 +84,7 @@ class ProxyInterface(BaseProxyInterface):
             out_len = len(intr_method.out_args)
             if not out_len:
                 return None
+            # TODO: change return to include file descryptors
             elif out_len == 1:
                 return msg.body[0]
             else:

@@ -8,8 +8,10 @@ from .proxy_object import ProxyObject
 from .. import introspection as intr
 from ..auth import Authenticator, AuthExternal
 
+import array
 import logging
 import asyncio
+import socket
 import traceback
 from typing import Optional
 
@@ -43,7 +45,7 @@ class MessageBus(BaseMessageBus):
                  auth: Authenticator = None):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()
-        self._unmarshaller = Unmarshaller(self._stream)
+        self._unmarshaller = Unmarshaller(self._stream, self._sock)
         if auth is None:
             self._auth = AuthExternal()
         else:
@@ -222,6 +224,32 @@ class MessageBus(BaseMessageBus):
 
         return future.result()
 
+    def sock_sendmsg(self, sock, *buffers, ancdata=None, flags=0):
+        fd = sock.fileno()
+        fut = asyncio.futures.Future(loop=self._loop)
+
+        def _sock_sendmsg(registered=False):
+            if registered:
+                self._loop.remove_writer(fd)
+
+            if fut.cancelled():
+                return
+
+            try:
+                size = sock.sendmsg(buffers, ancdata or [], flags)
+            except (BlockingIOError, InterruptedError):
+                self._loop.add_writer(fd, _sock_sendmsg, True)
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(size)
+
+        if self._loop._debug and sock.gettimeout() != 0:
+            raise ValueError('Socket %r must be non-blocking' % sock)
+
+        _sock_sendmsg()
+        return fut
+
     def send(self, msg: Message):
         if not msg.serial:
             msg.serial = self.next_serial()
@@ -231,7 +259,16 @@ class MessageBus(BaseMessageBus):
             self._buffered_messages.append(msg)
             return
 
-        asyncio.ensure_future(self._loop.sock_sendall(self._sock, msg._marshall()))
+        buf = msg._marshall()
+
+        async def _send():
+            ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", msg.unix_fds))] \
+                if msg.unix_fds else None
+
+            await self.sock_sendmsg(self._sock, buf[:1], ancdata=ancdata)
+            await self._loop.sock_sendall(self._sock, buf[1:])
+
+        asyncio.ensure_future(_send())
 
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
@@ -258,7 +295,7 @@ class MessageBus(BaseMessageBus):
             while True:
                 if self._unmarshaller.unmarshall():
                     self._on_message(self._unmarshaller.message)
-                    self._unmarshaller = Unmarshaller(self._stream)
+                    self._unmarshaller = Unmarshaller(self._stream, self._sock)
                 else:
                     break
         except Exception as e:

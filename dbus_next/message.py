@@ -221,8 +221,8 @@ class Message:
             fields.append([HeaderField.DESTINATION.value, Variant('s', self.destination)])
         if self.signature:
             fields.append([HeaderField.SIGNATURE.value, Variant('g', self.signature)])
-        for fd in self.unix_fds:
-            fields.append([HeaderField.UNIX_FDS.value, Variant('h', fd)])
+        if self.unix_fds:
+            fields.append([HeaderField.UNIX_FDS.value, Variant('u', len(self.unix_fds))])
 
         header_body = [
             LITTLE_ENDIAN, self.message_type.value, self.flags.value, PROTOCOL_VERSION,

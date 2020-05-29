@@ -4,6 +4,8 @@ from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree, Variant
 from ..errors import InvalidMessageError
 
+import array
+import socket
 from struct import unpack
 
 
@@ -12,10 +14,11 @@ class MarshallerStreamEndError(Exception):
 
 
 class Unmarshaller:
-    def __init__(self, stream):
+    def __init__(self, stream, sock=None):
         self.buf = bytearray()
         self.offset = 0
         self.stream = stream
+        self.sock = sock
         self.endian = None
         self.message = None
 
@@ -65,6 +68,24 @@ class Unmarshaller:
         if padding == 0 or padding == n:
             return b''
         return self.read(padding)
+
+    def read_endian(self, _=None):
+        unix_fds = array.array("i")
+
+        if self.sock:
+            try:
+                msg, ancdata, *_ = self.sock.recvmsg(1, socket.CMSG_LEN(16 * unix_fds.itemsize),
+                                                 socket.MSG_PEEK)
+            except BlockingIOError:
+                return self.read_byte(), list(unix_fds)
+
+            for level, type, data in ancdata:
+                if not (level == socket.SOL_SOCKET and type == socket.SCM_RIGHTS):
+                    continue
+
+                unix_fds.frombytes(data[:len(data) - (len(data) % unix_fds.itemsize)])
+
+        return self.read_byte(), list(unix_fds)
 
     def read_byte(self, _=None):
         return self.read(1)[0]
@@ -195,7 +216,8 @@ class Unmarshaller:
 
     def _unmarshall(self):
         self.offset = 0
-        self.endian = self.read_byte()
+        self.endian, unix_fds = self.read_endian()
+
         if self.endian != LITTLE_ENDIAN and self.endian != BIG_ENDIAN:
             raise InvalidMessageError('Expecting endianness as the first byte')
         message_type = MessageType(self.read_byte())
@@ -209,13 +231,13 @@ class Unmarshaller:
         body_len = self.read_uint32()
         serial = self.read_uint32()
 
-        header_fields = {HeaderField.UNIX_FDS.name: []}
+        header_fields = {}
         for field_struct in self.read_argument(SignatureTree('a(yv)').types[0]):
             field = HeaderField(field_struct[0])
             if field == HeaderField.UNIX_FDS:
-                header_fields[field.name].append(field_struct[1].value)
-            else:
-                header_fields[field.name] = field_struct[1].value
+                continue
+
+            header_fields[field.name] = field_struct[1].value
 
         self.align(8)
 
@@ -228,7 +250,8 @@ class Unmarshaller:
         sender = header_fields.get(HeaderField.SENDER.name)
         signature = header_fields.get(HeaderField.SIGNATURE.name, '')
         signature_tree = SignatureTree(signature)
-        unix_fds = header_fields.get(HeaderField.UNIX_FDS.name)
+        # TODO: check unix_fds against the header
+        # unix_fds = header_fields.get(HeaderField.UNIX_FDS.name)
 
         body = []
 
