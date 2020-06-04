@@ -60,10 +60,13 @@ class AuthExternal(Authenticator):
     def _receive_line(self, line: str):
         response, args = _AuthResponse.parse(line)
 
-        if response != _AuthResponse.OK:
-            raise AuthError(f'authentication failed: {response.value}: {args}')
+        if response is _AuthResponse.OK:
+            return "NEGOTIATE_UNIX_FD"
 
-        return 'BEGIN'
+        if response is _AuthResponse.AGREE_UNIX_FD:
+            return "BEGIN"
+
+        raise AuthError(f'authentication failed: {response.value}: {args}')
 
 
 class AuthAnnonymous(Authenticator):
