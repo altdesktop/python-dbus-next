@@ -282,8 +282,8 @@ class MessageBus(BaseMessageBus):
             def done(fut):
                 with send_reply:
                     result = fut.result()
-                    body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
-                    send_reply(Message.new_method_return(msg, method.out_signature, body))
+                    body, fds = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
+                    send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
 
             fut = asyncio.ensure_future(method.fn(interface, *msg.body))
             fut.add_done_callback(done)

@@ -135,7 +135,7 @@ class Message:
                        body=[error_text])
 
     @staticmethod
-    def new_method_return(msg: 'Message', signature: str = '', body: List[Any] = []) -> 'Message':
+    def new_method_return(msg: 'Message', signature: str = '', body: List[Any] = [], fds: List[Any] = []) -> 'Message':
         """A convenience constructor to create a method return to the given method call message.
 
         :param msg: The method call message this is a reply to.
@@ -155,14 +155,16 @@ class Message:
                        reply_serial=msg.serial,
                        destination=msg.sender,
                        signature=signature,
-                       body=body)
+                       body=body,
+                       unix_fds=fds)
 
     @staticmethod
     def new_signal(path: str,
                    interface: str,
                    member: str,
                    signature: str = '',
-                   body: List[Any] = None) -> 'Message':
+                   body: List[Any] = None,
+                   fds: List[Any] = None) -> 'Message':
         """A convenience constructor to create a new signal message.
 
         :param path: The path of this signal.
@@ -191,7 +193,8 @@ class Message:
                        path=path,
                        member=member,
                        signature=signature,
-                       body=body)
+                       body=body,
+                       unix_fds=fds)
 
     def _matches(self, **kwargs):
         for attr, val in kwargs.items():
@@ -232,3 +235,41 @@ class Message:
         header_block.marshall()
         header_block.align(8)
         return header_block.buffer + body_block.buffer
+
+
+def replace_fds(body_obj, children, replace_fn):
+    for index, st in enumerate(children):
+        if not any(sig in st.signature for sig in 'hv'):
+            continue
+        if st.signature == 'h':
+            body_obj[index] = replace_fn(body_obj[index])
+        elif st.token == 'a':
+            if st.children[0].token == '{':
+                replace_fds(body_obj[index], st.children, replace_fn)
+            else:
+                for i, child in enumerate(body_obj[index]):
+                    if st.signature == 'ah':
+                        body_obj[index][i] = replace_fn(child)
+                    else:
+                        replace_fds([child], st.children, replace_fn)
+        elif st.token in '(':
+            replace_fds(body_obj[index], st.children, replace_fn)
+        elif st.token in '{':
+            for key, value in list(body_obj.items()):
+                body_obj.pop(key)
+                if st.children[0].signature == 'h':
+                    key = replace_fn(key)
+                if st.children[1].signature == 'h':
+                    value = replace_fn(value)
+                else:
+                    replace_fds([value], [st.children[1]], replace_fn)
+                body_obj[key] = value
+
+        elif st.signature == 'v':
+            if body_obj[index].signature == 'h':
+                body_obj[index].value = replace_fn(body_obj[index].value)
+            else:
+                replace_fds([body_obj[index].value], [body_obj[index].type], replace_fn)
+
+        elif st.children:
+            replace_fds(body_obj[index], st.children, replace_fn)

@@ -2,10 +2,12 @@ from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
 from .errors import SignalDisabledError
+from .message import replace_fds
 
 from functools import wraps
 import inspect
 from typing import no_type_check_decorator, Dict, List, Any
+from os import dup
 
 # TODO: if the user uses `from __future__ import annotations` in their code,
 # the annotation inspection will not work because of PEP 563. We will get
@@ -431,23 +433,42 @@ class ServiceInterface:
 
     @staticmethod
     def _fn_result_to_body(result, signature_tree):
+        # TODO: find better way of passing results here instead of list
         out_len = len(signature_tree.types)
         if result is None:
-            body = []
-        elif out_len == 0:
-            raise SignatureBodyMismatchError('Function was not expected to return an argument')
-        elif out_len == 1:
-            body = [result]
-        elif type(result) is not list:
-            raise SignatureBodyMismatchError('Expected function to return a list of arguments')
+            result = []
         else:
-            body = result
+            if out_len == 1:
+                result = [result]
+            else:
+                if type(result) is not list:
+                    raise SignatureBodyMismatchError('Expected signal to return a list of arguments')
 
-        return body
+        if out_len != len(result):
+            raise SignatureBodyMismatchError(
+                "Signature and function return mismatch, expected %s arguments but got %s",
+                (len(signature_tree.types), len(result))
+            )
+
+        body = list(result)
+        fds = []
+
+        def _replace(obj):
+            if getattr(obj, "fileno", False):
+                obj = dup(obj.fileno())
+            fds.append(obj)
+
+            return len(fds) - 1
+
+        if any(sig in signature_tree.signature for sig in 'hv'):
+            replace_fds(body, signature_tree.types, _replace)
+
+        return body, fds
 
     @staticmethod
     def _handle_signal(interface, signal, result):
-        body = ServiceInterface._fn_result_to_body(result, signal.signature_tree)
+        body, fds = ServiceInterface._fn_result_to_body(result, signal.signature_tree)
         for bus in ServiceInterface._get_buses(interface):
+            # TODO: can signal pass fds?
             bus._interface_signal_notify(interface, interface.name, signal.name, signal.signature,
-                                         body)
+                                         body, fds)

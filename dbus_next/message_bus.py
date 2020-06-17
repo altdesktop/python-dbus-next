@@ -454,7 +454,7 @@ class BaseMessageBus:
 
         return False
 
-    def _interface_signal_notify(self, interface, interface_name, member, signature, body):
+    def _interface_signal_notify(self, interface, interface_name, member, signature, body, fds=[]):
         path = None
         for p, ifaces in self._path_exports.items():
             for i in ifaces:
@@ -469,7 +469,8 @@ class BaseMessageBus:
                                interface=interface_name,
                                member=member,
                                signature=signature,
-                               body=body))
+                               body=body,
+                               fds=fds))
 
     def _introspect_export_path(self, path):
         assert_object_path_valid(path)
@@ -672,8 +673,8 @@ class BaseMessageBus:
     def _make_method_handler(cls, interface, method):
         def handler(msg, send_reply):
             result = method.fn(interface, *msg.body)
-            body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
-            send_reply(Message.new_method_return(msg, method.out_signature, body))
+            body, fds = ServiceInterface._fn_result_to_body(result, signature_tree=method.out_signature_tree)
+            send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
 
         return handler
 
