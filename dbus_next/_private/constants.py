@@ -1,6 +1,7 @@
 from enum import Enum
 
 PROTOCOL_VERSION = 1
+MESSAGE_HEADER_LEN = 16
 
 LITTLE_ENDIAN = ord('l')
 BIG_ENDIAN = ord('B')

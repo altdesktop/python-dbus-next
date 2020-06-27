@@ -1,5 +1,5 @@
 from ..message import Message
-from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION
+from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION, MESSAGE_HEADER_LEN
 from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree, Variant
 from ..errors import InvalidMessageError
@@ -74,7 +74,7 @@ class Unmarshaller:
 
         if self.sock:
             try:
-                msg, ancdata, *_ = self.sock.recvmsg(1, socket.CMSG_LEN(16 * unix_fds.itemsize),
+                msg, ancdata, *_ = self.sock.recvmsg(MESSAGE_HEADER_LEN, socket.CMSG_LEN(16 * unix_fds.itemsize),
                                                  socket.MSG_PEEK)
             except BlockingIOError:
                 return self.read_byte(), list(unix_fds)

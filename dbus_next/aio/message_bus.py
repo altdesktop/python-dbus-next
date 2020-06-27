@@ -1,5 +1,6 @@
 from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
+from .._private.constants import MESSAGE_HEADER_LEN
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
 from ..service import ServiceInterface
@@ -265,8 +266,8 @@ class MessageBus(BaseMessageBus):
             ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", msg.unix_fds))] \
                 if msg.unix_fds else None
 
-            await self.sock_sendmsg(self._sock, buf[:1], ancdata=ancdata)
-            await self._loop.sock_sendall(self._sock, buf[1:])
+            await self.sock_sendmsg(self._sock, buf[:MESSAGE_HEADER_LEN], ancdata=ancdata)
+            await self._loop.sock_sendall(self._sock, buf[MESSAGE_HEADER_LEN:])
 
         asyncio.ensure_future(_send())
 
