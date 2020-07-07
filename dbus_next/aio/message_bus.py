@@ -48,7 +48,7 @@ class MessageBus(BaseMessageBus):
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream, self._sock)
         if auth is None:
-            self._auth = AuthExternal()
+            self._auth = AuthExternal(enable_fds=True)
         else:
             self._auth = auth
 
@@ -225,11 +225,11 @@ class MessageBus(BaseMessageBus):
 
         return future.result()
 
-    def sock_sendmsg(self, sock, *buffers, ancdata=None, flags=0):
+    def _sock_sendmsg(self, sock, *buffers, ancdata=None, flags=0):
         fd = sock.fileno()
         fut = asyncio.futures.Future(loop=self._loop)
 
-        def _sock_sendmsg(registered=False):
+        def __sock_sendmsg(registered=False):
             if registered:
                 self._loop.remove_writer(fd)
 
@@ -239,7 +239,7 @@ class MessageBus(BaseMessageBus):
             try:
                 size = sock.sendmsg(buffers, ancdata or [], flags)
             except (BlockingIOError, InterruptedError):
-                self._loop.add_writer(fd, _sock_sendmsg, True)
+                self._loop.add_writer(fd, __sock_sendmsg, True)
             except Exception as exc:
                 fut.set_exception(exc)
             else:
@@ -248,7 +248,7 @@ class MessageBus(BaseMessageBus):
         if self._loop._debug and sock.gettimeout() != 0:
             raise ValueError('Socket %r must be non-blocking' % sock)
 
-        _sock_sendmsg()
+        __sock_sendmsg()
         return fut
 
     def send(self, msg: Message):
@@ -266,7 +266,7 @@ class MessageBus(BaseMessageBus):
             ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", msg.unix_fds))] \
                 if msg.unix_fds else None
 
-            await self.sock_sendmsg(self._sock, buf[:MESSAGE_HEADER_LEN], ancdata=ancdata)
+            await self._sock_sendmsg(self._sock, buf[:MESSAGE_HEADER_LEN], ancdata=ancdata)
             await self._loop.sock_sendall(self._sock, buf[MESSAGE_HEADER_LEN:])
 
         asyncio.ensure_future(_send())
@@ -283,7 +283,8 @@ class MessageBus(BaseMessageBus):
             def done(fut):
                 with send_reply:
                     result = fut.result()
-                    body, fds = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
+                    body, fds = ServiceInterface._fn_result_to_body(result,
+                                                                    method.out_signature_tree)
                     send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
 
             fut = asyncio.ensure_future(method.fn(interface, *msg.body))

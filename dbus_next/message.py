@@ -5,7 +5,7 @@ from .validators import assert_bus_name_valid, assert_member_name_valid, assert_
 from .errors import InvalidMessageError
 from .signature import SignatureTree, Variant
 
-from typing import List, Any
+from typing import List, Any, Union, IO
 
 
 class Message:
@@ -135,7 +135,10 @@ class Message:
                        body=[error_text])
 
     @staticmethod
-    def new_method_return(msg: 'Message', signature: str = '', body: List[Any] = [], fds: List[Any] = []) -> 'Message':
+    def new_method_return(msg: 'Message',
+                          signature: str = '',
+                          body: List[Any] = [],
+                          fds: List[Union[int, IO]] = []) -> 'Message':
         """A convenience constructor to create a method return to the given method call message.
 
         :param msg: The method call message this is a reply to.
@@ -144,6 +147,8 @@ class Message:
         :type signature: str
         :param body: The body of this message. Must match the signature.
         :type body: list(Any)
+        :param fds: List of filelike objects or integers representing file descriptors.
+        :type body: list(file object or int)
 
         :returns: The method return message
         :rtype: :class:`Message`
@@ -237,7 +242,7 @@ class Message:
         return header_block.buffer + body_block.buffer
 
 
-def replace_fds(body_obj, children, replace_fn):
+def _replace_fds(body_obj, children, replace_fn):
     for index, st in enumerate(children):
         if not any(sig in st.signature for sig in 'hv'):
             continue
@@ -245,15 +250,15 @@ def replace_fds(body_obj, children, replace_fn):
             body_obj[index] = replace_fn(body_obj[index])
         elif st.token == 'a':
             if st.children[0].token == '{':
-                replace_fds(body_obj[index], st.children, replace_fn)
+                _replace_fds(body_obj[index], st.children, replace_fn)
             else:
                 for i, child in enumerate(body_obj[index]):
                     if st.signature == 'ah':
                         body_obj[index][i] = replace_fn(child)
                     else:
-                        replace_fds([child], st.children, replace_fn)
+                        _replace_fds([child], st.children, replace_fn)
         elif st.token in '(':
-            replace_fds(body_obj[index], st.children, replace_fn)
+            _replace_fds(body_obj[index], st.children, replace_fn)
         elif st.token in '{':
             for key, value in list(body_obj.items()):
                 body_obj.pop(key)
@@ -262,14 +267,14 @@ def replace_fds(body_obj, children, replace_fn):
                 if st.children[1].signature == 'h':
                     value = replace_fn(value)
                 else:
-                    replace_fds([value], [st.children[1]], replace_fn)
+                    _replace_fds([value], [st.children[1]], replace_fn)
                 body_obj[key] = value
 
         elif st.signature == 'v':
             if body_obj[index].signature == 'h':
                 body_obj[index].value = replace_fn(body_obj[index].value)
             else:
-                replace_fds([body_obj[index].value], [body_obj[index].type], replace_fn)
+                _replace_fds([body_obj[index].value], [body_obj[index].type], replace_fn)
 
         elif st.children:
-            replace_fds(body_obj[index], st.children, replace_fn)
+            _replace_fds(body_obj[index], st.children, replace_fn)

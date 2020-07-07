@@ -1,6 +1,6 @@
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
-from ..message import Message, MessageFlag, replace_fds
+from ..message import Message, MessageFlag, _replace_fds
 from ..signature import Variant
 from ..errors import DBusError
 from ..constants import ErrorType
@@ -87,7 +87,7 @@ class ProxyInterface(BaseProxyInterface):
                 return msg.unix_fds[obj]
 
             if any(sig in msg.signature for sig in 'hv'):
-                replace_fds(msg.body, msg.signature_tree.types, _replace)
+                _replace_fds(msg.body, msg.signature_tree.types, _replace)
 
             if not out_len:
                 return None

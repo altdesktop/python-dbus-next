@@ -673,7 +673,8 @@ class BaseMessageBus:
     def _make_method_handler(cls, interface, method):
         def handler(msg, send_reply):
             result = method.fn(interface, *msg.body)
-            body, fds = ServiceInterface._fn_result_to_body(result, signature_tree=method.out_signature_tree)
+            body, fds = ServiceInterface._fn_result_to_body(
+                result, signature_tree=method.out_signature_tree)
             send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
 
         return handler

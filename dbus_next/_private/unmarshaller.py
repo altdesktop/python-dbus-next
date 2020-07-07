@@ -74,8 +74,9 @@ class Unmarshaller:
 
         if self.sock:
             try:
-                msg, ancdata, *_ = self.sock.recvmsg(MESSAGE_HEADER_LEN, socket.CMSG_LEN(16 * unix_fds.itemsize),
-                                                 socket.MSG_PEEK)
+                msg, ancdata, *_ = self.sock.recvmsg(MESSAGE_HEADER_LEN,
+                                                     socket.CMSG_LEN(16 * unix_fds.itemsize),
+                                                     socket.MSG_PEEK)
             except BlockingIOError:
                 return self.read_byte(), list(unix_fds)
 

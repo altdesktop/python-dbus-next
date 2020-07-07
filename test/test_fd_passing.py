@@ -76,24 +76,56 @@ async def test_sending_file_descriptor_with_proxy():
         pytest.param([9], 'ah', ([[0]], [9]), id='Signature: "ah"'),
         pytest.param([3], '(h)', ([[0]], [3]), id='Signature: "(h)"'),
         pytest.param([3, "foo"], '(hs)', ([[0, "foo"]], [3]), id='Signature: "(hs)"'),
-        pytest.param([[7, "foo"], [8, "bar"]], 'a(hs)', ([[[0, "foo"], [1, "bar"]]], [7, 8]), id='Signature: "a(hs)"'),
-        pytest.param({"foo": 3}, 'a{sh}', ([{"foo": 0}], [3]), id='Signature: "a{sh}"'),
-        pytest.param({"foo": 3, "bar": 6}, 'a{sh}', ([{"foo": 0, "bar": 1}], [3, 6]), id='Signature: "a{sh}"'),
-        pytest.param({"foo": [3, 8]}, 'a{sah}', ([{"foo": [0, 1]}], [3, 8]), id='Signature: "a{sah}"'),
-        pytest.param({'foo': Variant('t', 100)}, 'a{sv}', ([{'foo': Variant('t', 100)}], []), id='Signature: "a{sv}"'),
-        pytest.param(['one', ['two', [Variant('s', 'three')]]], '(s(s(v)))', ([['one', ['two', [Variant('s', 'three')]]]], []), id='Signature: "(s(s(v)))"'),
-        pytest.param(Variant('h', 2), 'v', ([Variant('h', 0)], [2]), id='Variant with: "h"'),
-        pytest.param(Variant('(hh)', [2, 8]), 'v', ([Variant('(hh)', [0, 1])], [2, 8]), id='Variant with: "(hh)"'),
-        pytest.param(Variant('ah', [2, 4]), 'v', ([Variant('ah', [0, 1])], [2, 4]), id='Variant with: "ah"'),
-        pytest.param(Variant('(ss)', ['hello', 'world']), 'v', ([Variant('(ss)', ['hello', 'world'])], []), id='Variant with: "(ss)"'),
-        pytest.param(Variant('v', Variant('t', 100)), 'v', ([Variant('v', Variant('t', 100))], []), id='Variant with: "v"'),
+        pytest.param([[7, "foo"], [8, "bar"]],
+                     'a(hs)', ([[[0, "foo"], [1, "bar"]]], [7, 8]),
+                     id='Signature: "a(hs)"'),
+        pytest.param({"foo": 3}, 'a{sh}', ([{
+            "foo": 0
+        }], [3]), id='Signature: "a{sh}"'),
+        pytest.param({
+            "foo": 3,
+            "bar": 6
+        },
+                     'a{sh}', ([{
+                         "foo": 0,
+                         "bar": 1
+                     }], [3, 6]),
+                     id='Signature: "a{sh}"'),
         pytest.param(
-            [Variant('v', Variant('(ss)', ['hello', 'world'])),
-             {'foo': Variant('t', 100)}, ['one', ['two', [Variant('s', 'three')]]]],
-            'va{sv}(s(s(v)))',
-            ([Variant('v', Variant('(ss)', ['hello', 'world'])),
-              {'foo': Variant('t', 100)}, ['one', ['two', [Variant('s', 'three')]]]], []),
-            id='Variant with: "va{sv}(s(s(v)))"'),
+            {"foo": [3, 8]}, 'a{sah}', ([{
+                "foo": [0, 1]
+            }], [3, 8]), id='Signature: "a{sah}"'),
+        pytest.param({'foo': Variant('t', 100)},
+                     'a{sv}', ([{
+                         'foo': Variant('t', 100)
+                     }], []),
+                     id='Signature: "a{sv}"'),
+        pytest.param(['one', ['two', [Variant('s', 'three')]]],
+                     '(s(s(v)))', ([['one', ['two', [Variant('s', 'three')]]]], []),
+                     id='Signature: "(s(s(v)))"'),
+        pytest.param(Variant('h', 2), 'v', ([Variant('h', 0)], [2]), id='Variant with: "h"'),
+        pytest.param(Variant('(hh)', [2, 8]),
+                     'v', ([Variant('(hh)', [0, 1])], [2, 8]),
+                     id='Variant with: "(hh)"'),
+        pytest.param(
+            Variant('ah', [2, 4]), 'v', ([Variant('ah', [0, 1])], [2, 4]), id='Variant with: "ah"'),
+        pytest.param(Variant('(ss)', ['hello', 'world']),
+                     'v', ([Variant('(ss)', ['hello', 'world'])], []),
+                     id='Variant with: "(ss)"'),
+        pytest.param(Variant('v', Variant('t', 100)),
+                     'v', ([Variant('v', Variant('t', 100))], []),
+                     id='Variant with: "v"'),
+        pytest.param([
+            Variant('v', Variant('(ss)', ['hello', 'world'])), {
+                'foo': Variant('t', 100)
+            }, ['one', ['two', [Variant('s', 'three')]]]
+        ],
+                     'va{sv}(s(s(v)))', ([
+                         Variant('v', Variant('(ss)', ['hello', 'world'])), {
+                             'foo': Variant('t', 100)
+                         }, ['one', ['two', [Variant('s', 'three')]]]
+                     ], []),
+                     id='Variant with: "va{sv}(s(s(v)))"'),
     ],
 )
 async def test_fn_result_to_body(result, out_signature, expected):

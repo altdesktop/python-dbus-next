@@ -2,7 +2,7 @@ from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
 from .errors import SignalDisabledError
-from .message import replace_fds
+from .message import _replace_fds
 
 from functools import wraps
 import inspect
@@ -442,26 +442,26 @@ class ServiceInterface:
                 result = [result]
             else:
                 if type(result) is not list:
-                    raise SignatureBodyMismatchError('Expected signal to return a list of arguments')
+                    raise SignatureBodyMismatchError(
+                        'Expected signal to return a list of arguments')
 
         if out_len != len(result):
             raise SignatureBodyMismatchError(
                 "Signature and function return mismatch, expected %s arguments but got %s",
-                (len(signature_tree.types), len(result))
-            )
+                (len(signature_tree.types), len(result)))
 
         body = list(result)
         fds = []
 
         def _replace(obj):
-            if getattr(obj, "fileno", False):
+            if hasattr(obj, "fileno"):
                 obj = dup(obj.fileno())
             fds.append(obj)
 
             return len(fds) - 1
 
         if any(sig in signature_tree.signature for sig in 'hv'):
-            replace_fds(body, signature_tree.types, _replace)
+            _replace_fds(body, signature_tree.types, _replace)
 
         return body, fds
 
