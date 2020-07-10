@@ -1,6 +1,6 @@
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
-from ..message import Message
+from ..message import Message, MessageFlag
 from ..signature import Variant
 from ..errors import DBusError
 from ..constants import ErrorType
@@ -66,14 +66,18 @@ class ProxyInterface(BaseProxyInterface):
     <dbus_next.DBusError>` will be raised with information about the error.
     """
     def _add_method(self, intr_method):
-        async def method_fn(*args):
+        async def method_fn(*args, flags=MessageFlag.NONE):
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
                         path=self.path,
                         interface=self.introspection.name,
                         member=intr_method.name,
                         signature=intr_method.in_signature,
-                        body=list(args)))
+                        body=list(args),
+                        flags=flags))
+
+            if flags & MessageFlag.NO_REPLY_EXPECTED:
+                return None
 
             BaseProxyInterface._check_method_return(msg, intr_method.out_signature)
 
