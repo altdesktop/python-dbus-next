@@ -1,3 +1,4 @@
+from dbus_next.message import MessageFlag
 from dbus_next.service import ServiceInterface, method
 import dbus_next.introspection as intr
 from dbus_next import aio, glib, DBusError
@@ -74,6 +75,9 @@ async def test_aio_proxy_object():
 
     result = await interface.call_echo_int64(-10000)
     assert result == -10000
+
+    result = await interface.call_echo_string('no reply', flags=MessageFlag.NO_REPLY_EXPECTED)
+    assert result is None
 
     with pytest.raises(DBusError):
         try:
