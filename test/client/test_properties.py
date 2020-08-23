@@ -114,3 +114,5 @@ def test_glib_properties():
             assert e.text == service_interface.error_text
             assert type(e.reply) is Message
             raise e
+
+    service_bus.disconnect()

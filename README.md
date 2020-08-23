@@ -2,9 +2,9 @@
 
 The next great DBus library for Python.
 
-[Documentation](https://python-dbus-next.readthedocs.io/en/latest/).
+[Documentation](https://python-dbus-next.readthedocs.io/en/latest/)
 
-*This project is in the early stages of development and the public api is unstable*
+[Chat](https://discord.gg/UdbXHVX)
 
 python-dbus-next is a Python library for DBus that aims to be a fully featured high level library primarily geared towards integration of applications into Linux desktop and mobile environments.
 
@@ -31,8 +31,6 @@ pip3 install dbus-next
 ```
 
 ## The Client Interface
-
-*The client interface is somewhat stable*
 
 To use a service on the bus, the library constructs a proxy object you can use to call methods, get and set properties, and listen to signals.
 
@@ -80,14 +78,12 @@ loop.run_until_complete(main())
 
 ## The Service Interface
 
-*The service interface is somewhat stable*
-
 To define a service on the bus, use the `ServiceInterface` class and decorate class methods to specify DBus methods, properties, and signals with their type signatures.
 
 For more information, see the [overview for the high-level service](https://python-dbus-next.readthedocs.io/en/latest/high-level-service/index.html).
 
 ```python
-from dbus_next import ServiceInterface, method, dbus_property, signal, Variant
+from dbus_next.service import ServiceInterface, method, dbus_property, signal, Variant
 from dbus_next.aio MessageBus
 
 import asyncio
@@ -123,17 +119,17 @@ class ExampleInterface(ServiceInterface):
 
 async def main():
     bus = await MessageBus().connect()
-    await bus.request_name('test.name')
     interface = ExampleInterface('test.interface')
     bus.export('/test/path', interface)
+    # now that we are ready to handle requests, we can request name from D-Bus
+    await bus.request_name('test.name')
+    # wait indefinitely
     await asyncio.get_event_loop().create_future()
 
 asyncio.get_event_loop().run_until_complete(main())
 ```
 
 ## The Low-Level Interface
-
-*The low-level interface is somewhat stable*
 
 The low-level interface works with DBus messages directly.
 

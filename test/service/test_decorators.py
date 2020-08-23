@@ -1,8 +1,6 @@
 from dbus_next import PropertyAccess, introspection as intr
 from dbus_next.service import ServiceInterface, method, signal, dbus_property
 
-import xml.etree.ElementTree as ET
-
 
 class ExampleInterface(ServiceInterface):
     def __init__(self):
@@ -135,21 +133,16 @@ def test_interface_introspection():
     intr_interface = interface.introspect()
     assert type(intr_interface) is intr.Interface
 
-    # with disabled members removed
-    expected_xml = '''
-    <interface name="test.interface">
-        <method name="some_method">
-            <arg direction="in" name="one" type="s" />
-            <arg direction="in" name="two" type="s" />
-            <arg direction="out" type="s" />
-        </method>
-        <signal name="some_signal">
-            <arg direction="out" type="as" />
-        </signal>
-        <property access="readwrite" name="weird_prop" type="t" />
-        <property access="readwrite" name="some_prop" type="u" />
-    </interface>
-    '''.replace('\n', '').replace(' ' * 4, '').strip()
+    xml = intr_interface.to_xml()
 
-    introspection_xml = ET.tostring(intr_interface.to_xml(), encoding='unicode')
-    assert introspection_xml == expected_xml
+    assert xml.tag == 'interface'
+    assert xml.attrib.get('name', None) == 'test.interface'
+
+    methods = xml.findall('method')
+    signals = xml.findall('signal')
+    properties = xml.findall('property')
+
+    assert len(xml) == 4
+    assert len(methods) == 1
+    assert len(signals) == 1
+    assert len(properties) == 2

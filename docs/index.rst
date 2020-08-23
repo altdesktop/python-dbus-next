@@ -16,6 +16,7 @@ Python DBus-Next Documentation
    validators
    constants
    errors
+   authentication
 
 Overview
 ++++++++
@@ -38,9 +39,9 @@ While other libraries for DBus exist for Python, this library offers the followi
 
 The library offers three core interfaces:
 
-- `The High Level Client </high-level-client/index.html>`_ - Communicate with an existing interface exported on the bus by another client through a proxy object.
-- `The High Level Service </high-level-service/index.html>`_ - Export a service interface for your application other clients can connect to for interaction with your application at runtime.
-- `The Low Level Interface </low-level-interface/index.html>`_ - Work with DBus messages directly for applications that work with the DBus daemon directly or to build your own high level abstractions.
+- `The High Level Client <high-level-client/index.html>`_ - Communicate with an existing interface exported on the bus by another client through a proxy object.
+- `The High Level Service <high-level-service/index.html>`_ - Export a service interface for your application other clients can connect to for interaction with your application at runtime.
+- `The Low Level Interface <low-level-interface/index.html>`_ - Work with DBus messages directly for applications that work with the DBus daemon directly or to build your own high level abstractions.
 
 Installation
 ++++++++++++
@@ -59,7 +60,7 @@ Development for this library happens on `Github <https://github.com/acrisci/pyth
 License
 ++++++++
 
-This library is available under an `MIT License <https://github.com/acrisci/python-dbus-next/blob/master/LICENCE>`_.
+This library is available under an `MIT License <https://github.com/acrisci/python-dbus-next/blob/master/LICENSE>`_.
 
 © 2019, Tony Crisci
 

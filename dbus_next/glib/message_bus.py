@@ -3,12 +3,11 @@ from ..constants import BusType
 from ..message import Message
 from ..constants import MessageType, MessageFlag, NameFlag, RequestNameReply, ReleaseNameReply
 from ..message_bus import BaseMessageBus
-from .._private.auth import auth_external, auth_begin, auth_parse_line, AuthResponse
 from ..errors import AuthError
 from .proxy_object import ProxyObject
 from .. import introspection as intr
+from ..auth import Authenticator, AuthExternal
 
-import logging
 import io
 from typing import Callable, Optional
 
@@ -113,8 +112,9 @@ class _AuthLineSource(_GLibSource):
     def dispatch(self, callback, user_data):
         self.buf += self.stream.read()
         if self.buf[-2:] == b'\r\n':
-            callback(self.buf)
-            return GLib.SOURCE_REMOVE
+            resp = callback(self.buf.decode()[:-2])
+            if resp:
+                return GLib.SOURCE_REMOVE
 
         return GLib.SOURCE_CONTINUE
 
@@ -135,17 +135,28 @@ class MessageBus(BaseMessageBus):
     :type bus_type: :class:`BusType <dbus_next.BusType>`
     :param bus_address: A specific bus address to connect to. Should not be
         used under normal circumstances.
+    :param auth: The authenticator to use, defaults to an instance of
+        :class:`AuthExternal <dbus_next.auth.AuthExternal>`.
+    :type auth: :class:`Authenticator <dbus_next.auth.Authenticator>`
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
+    def __init__(self,
+                 bus_address: str = None,
+                 bus_type: BusType = BusType.SESSION,
+                 auth: Authenticator = None):
         if _import_error:
             raise _import_error
 
         super().__init__(bus_address, bus_type, ProxyObject)
         self._main_context = GLib.main_context_default()
+
+        if auth is None:
+            self._auth = AuthExternal()
+        else:
+            self._auth = auth
 
     def connect(self, connect_notify: Callable[['MessageBus', Optional[Exception]], None] = None):
         """Connect this message bus to the DBus daemon.
@@ -158,19 +169,11 @@ class MessageBus(BaseMessageBus):
             :class:`AuthError <dbus_next.AuthError>` on authorization errors.
         :type callback: :class:`Callable`
         """
-        self._stream.write(b'\0')
-        self._stream.write(auth_external())
-        self._stream.flush()
-
-        def on_authline(line):
-            response, args = auth_parse_line(line)
-
-            if response != AuthResponse.OK:
-                raise AuthError(f'authorization failed: {response.value}: {args}')
-
-            self._stream.write(auth_begin())
-            self._stream.flush()
-
+        def authenticate_notify(exc):
+            if exc is not None:
+                if connect_notify is not None:
+                    connect_notify(None, exc)
+                return
             self.message_source = _MessageSource(self)
             self.message_source.set_callback(self._on_message)
             self.message_source.attach(self._main_context)
@@ -193,34 +196,17 @@ class MessageBus(BaseMessageBus):
                 if connect_notify:
                     connect_notify(self, err)
 
-            def on_match_added(reply, err):
-                if err:
-                    logging.error(f'adding match to "NameOwnerChanged" failed: {err}')
-                    self.disconnect()
-                    return
-
             hello_msg = Message(destination='org.freedesktop.DBus',
                                 path='/org/freedesktop/DBus',
                                 interface='org.freedesktop.DBus',
                                 member='Hello',
                                 serial=self.next_serial())
 
-            match = "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',path='/org/freedesktop/DBus',member='NameOwnerChanged'"
-            add_match_msg = Message(destination='org.freedesktop.DBus',
-                                    path='/org/freedesktop/DBus',
-                                    interface='org.freedesktop.DBus',
-                                    member='AddMatch',
-                                    signature='s',
-                                    body=[match],
-                                    serial=self.next_serial())
-
             self._method_return_handlers[hello_msg.serial] = on_hello
-            self._method_return_handlers[add_match_msg.serial] = on_match_added
             self._stream.write(hello_msg._marshall())
-            self._stream.write(add_match_msg._marshall())
             self._stream.flush()
 
-        self._auth_readline(on_authline)
+        self._authenticate(authenticate_notify)
 
     def connect_sync(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
@@ -451,9 +437,30 @@ class MessageBus(BaseMessageBus):
             self.writable_source.attach(self._main_context)
             self.writable_source.add_unix_fd(self._fd, GLib.IO_OUT)
 
-    def _auth_readline(self, callback):
+    def _authenticate(self, authenticate_notify):
+        self._stream.write(b'\0')
+        first_line = self._auth._authentication_start()
+        if first_line is not None:
+            if type(first_line) is not str:
+                raise AuthError('authenticator gave response not type str')
+            self._stream.write(f'{first_line}\r\n'.encode())
+            self._stream.flush()
+
+        def line_notify(line):
+            try:
+                resp = self._auth._receive_line(line)
+                self._stream.write(Authenticator._format_line(resp))
+                self._stream.flush()
+                if resp == 'BEGIN':
+                    self._readline_source = None
+                    authenticate_notify(None)
+                    return True
+            except Exception as e:
+                authenticate_notify(e)
+                return True
+
         readline_source = _AuthLineSource(self._stream)
-        readline_source.set_callback(callback)
+        readline_source.set_callback(line_notify)
         readline_source.add_unix_fd(self._fd, GLib.IO_IN)
         readline_source.attach(self._main_context)
         # make sure it doesnt get cleaned up

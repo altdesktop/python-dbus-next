@@ -33,7 +33,7 @@ class ProxyInterface(BaseProxyInterface):
 
     A *method call* takes this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         def callback(error: Exception, result: list(Any)):
             pass
@@ -61,7 +61,7 @@ class ProxyInterface(BaseProxyInterface):
 
     To *listen to a signal* use this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         interface.on_[SIGNAL](callback)
 
@@ -73,7 +73,7 @@ class ProxyInterface(BaseProxyInterface):
 
     To *get or set a property* use this form:
 
-    .. code-block::
+    .. code-block:: python3
 
         def get_callback(error: Exception, value: Any):
             pass

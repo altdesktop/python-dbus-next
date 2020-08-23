@@ -1,7 +1,6 @@
 from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
-from .message import Message
 from .errors import SignalDisabledError
 
 from functools import wraps
@@ -431,35 +430,24 @@ class ServiceInterface:
         return interface.__signals
 
     @staticmethod
-    def _handle_signal(interface, signal, body):
-        out_len = len(signal.signature_tree.types)
-        if body is None:
+    def _fn_result_to_body(result, signature_tree):
+        out_len = len(signature_tree.types)
+        if result is None:
             body = []
         elif out_len == 0:
-            raise SignatureBodyMismatchError('Signal was not expected to return an argument')
+            raise SignatureBodyMismatchError('Function was not expected to return an argument')
         elif out_len == 1:
-            body = [body]
-        elif type(body) is not list:
-            raise SignatureBodyMismatchError('Expected signal to return a list of arguments')
+            body = [result]
+        elif type(result) is not list:
+            raise SignatureBodyMismatchError('Expected function to return a list of arguments')
+        else:
+            body = result
 
+        return body
+
+    @staticmethod
+    def _handle_signal(interface, signal, result):
+        body = ServiceInterface._fn_result_to_body(result, signal.signature_tree)
         for bus in ServiceInterface._get_buses(interface):
             bus._interface_signal_notify(interface, interface.name, signal.name, signal.signature,
                                          body)
-
-    @staticmethod
-    def _make_method_handler(interface, method):
-        def handler(msg):
-            body = method.fn(interface, *msg.body)
-            out_len = len(method.out_signature_tree.types)
-            if body is None:
-                body = []
-            elif out_len == 0:
-                raise SignatureBodyMismatchError('Method was not expected to return an argument')
-            elif out_len == 1:
-                body = [body]
-            elif type(body) is not list:
-                raise SignatureBodyMismatchError('Expected method to return a list of arguments')
-
-            return Message.new_method_return(msg, method.out_signature, body)
-
-        return handler

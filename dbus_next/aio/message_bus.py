@@ -2,15 +2,15 @@ from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
-from .._private.auth import auth_external, auth_anonymous, auth_parse_line, auth_begin, AuthResponse
-from ..errors import AuthError, DBusError
+from ..service import ServiceInterface
+from ..errors import AuthError
 from .proxy_object import ProxyObject
 from .. import introspection as intr
+from ..auth import Authenticator, AuthExternal
 
 import logging
 import asyncio
 import traceback
-import socket
 from typing import Optional
 
 
@@ -29,15 +29,25 @@ class MessageBus(BaseMessageBus):
     :type bus_type: :class:`BusType <dbus_next.BusType>`
     :param bus_address: A specific bus address to connect to. Should not be
         used under normal circumstances.
+    :param auth: The authenticator to use, defaults to an instance of
+        :class:`AuthExternal <dbus_next.auth.AuthExternal>`.
+    :type auth: :class:`Authenticator <dbus_next.auth.Authenticator>`
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
-    def __init__(self, bus_address: str = None, bus_type: BusType = BusType.SESSION):
+    def __init__(self,
+                 bus_address: str = None,
+                 bus_type: BusType = BusType.SESSION,
+                 auth: Authenticator = None):
         super().__init__(bus_address, bus_type, ProxyObject)
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = Unmarshaller(self._stream)
+        if auth is None:
+            self._auth = AuthExternal()
+        else:
+            self._auth = auth
 
     async def connect(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
@@ -52,21 +62,9 @@ class MessageBus(BaseMessageBus):
               the DBus daemon failed.
             - :class:`Exception` - If there was a connection error.
         """
+        await self._authenticate()
+
         future = self._loop.create_future()
-
-        await self._loop.sock_sendall(self._sock, b'\0')
-        # external authentification does not work on TCP connections
-        if self._sock.family == socket.AF_INET:
-          await self._loop.sock_sendall(self._sock, auth_anonymous())
-        else:
-          await self._loop.sock_sendall(self._sock, auth_external())
-        response, args = auth_parse_line(await self._auth_readline())
-
-        if response != AuthResponse.OK:
-            raise AuthError(f'authorization failed: {response.value}: {args}')
-
-        self._stream.write(auth_begin())
-        self._stream.flush()
 
         self._loop.add_reader(self._fd, self._message_reader)
 
@@ -83,35 +81,14 @@ class MessageBus(BaseMessageBus):
             self._buffered_messages.clear()
             future.set_result(self)
 
-        def on_match_added(reply, err):
-            if err:
-                logging.error(f'adding match to "NameOwnerChanged" failed')
-                self.disconnect()
-                self._finalize(err)
-            elif reply.message_type == MessageType.ERROR:
-                logging.error(f'adding match to "NameOwnerChanged" failed')
-                self.disconnect()
-                self._finalize(DBusError._from_message(reply))
-
         hello_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',
                             interface='org.freedesktop.DBus',
                             member='Hello',
                             serial=self.next_serial())
 
-        match = "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',path='/org/freedesktop/DBus',member='NameOwnerChanged'"
-        add_match_msg = Message(destination='org.freedesktop.DBus',
-                                path='/org/freedesktop/DBus',
-                                interface='org.freedesktop.DBus',
-                                member='AddMatch',
-                                signature='s',
-                                body=[match],
-                                serial=self.next_serial())
-
         self._method_return_handlers[hello_msg.serial] = on_hello
-        self._method_return_handlers[add_match_msg.serial] = on_match_added
         self._stream.write(hello_msg._marshall())
-        self._stream.write(add_match_msg._marshall())
         self._stream.flush()
 
         return await future
@@ -222,11 +199,9 @@ class MessageBus(BaseMessageBus):
         :returns: A message in reply to the message sent. If the message does
             not expect a reply based on the message flags or type, returns
             ``None`` immediately.
-        :rtype: :class:`Message <dbus_next.Message>`
+        :rtype: :class:`Message <dbus_next.Message>` or :class:`None` if no reply is expected.
 
         :raises:
-            - :class:`DBusError <dbus_next.DBusError>` - If the service threw \
-                  an error for the method call or returned an invalid result.
             - :class:`Exception` - If a connection error occurred.
         """
         if msg.flags & MessageFlag.NO_REPLY_EXPECTED or msg.message_type is not MessageType.METHOD_CALL:
@@ -261,6 +236,23 @@ class MessageBus(BaseMessageBus):
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
 
+    @classmethod
+    def _make_method_handler(cls, interface, method):
+        if not asyncio.iscoroutinefunction(method.fn):
+            return super()._make_method_handler(interface, method)
+
+        def handler(msg, send_reply):
+            def done(fut):
+                with send_reply:
+                    result = fut.result()
+                    body = ServiceInterface._fn_result_to_body(result, method.out_signature_tree)
+                    send_reply(Message.new_method_return(msg, method.out_signature, body))
+
+            fut = asyncio.ensure_future(method.fn(interface, *msg.body))
+            fut.add_done_callback(done)
+
+        return handler
+
     def _message_reader(self):
         try:
             while True:
@@ -277,4 +269,22 @@ class MessageBus(BaseMessageBus):
         buf = b''
         while buf[-2:] != b'\r\n':
             buf += await self._loop.sock_recv(self._sock, 2)
-        return buf
+        return buf[:-2].decode()
+
+    async def _authenticate(self):
+        await self._loop.sock_sendall(self._sock, b'\0')
+
+        first_line = self._auth._authentication_start()
+
+        if first_line is not None:
+            if type(first_line) is not str:
+                raise AuthError('authenticator gave response not type str')
+            await self._loop.sock_sendall(self._sock, Authenticator._format_line(first_line))
+
+        while True:
+            response = self._auth._receive_line(await self._auth_readline())
+            if response is not None:
+                await self._loop.sock_sendall(self._sock, Authenticator._format_line(response))
+                self._stream.flush()
+            if response == 'BEGIN':
+                break

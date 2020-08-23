@@ -5,5 +5,6 @@ pytest-cov
 yapf
 flake8
 sphinx
+sphinx-autobuild
 sphinxcontrib-asyncio
 sphinxcontrib-fulltoc

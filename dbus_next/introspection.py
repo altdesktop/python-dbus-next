@@ -235,7 +235,9 @@ class Property:
         - :class `InvalidSignatureError <dbus_next.InvalidSignatureError>` - If the given signature is not valid.
         - :class: `InvalidMemberNameError <dbus_next.InvalidMemberNameError>` - If the member name is not valid.
     """
-    def __init__(self, name: str, signature: str,
+    def __init__(self,
+                 name: str,
+                 signature: str,
                  access: PropertyAccess = PropertyAccess.READWRITE):
         assert_member_name_valid(name)
 

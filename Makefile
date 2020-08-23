@@ -1,4 +1,4 @@
-.PHONY: test format lint all clean publish docs coverage
+.PHONY: lint check format test docker-test clean publish docs livedocs all
 .DEFAULT_GOAL := all
 
 source_dirs = dbus_next test examples
@@ -6,18 +6,22 @@ source_dirs = dbus_next test examples
 lint:
 	flake8 $(source_dirs)
 
+check: lint
+	yapf -rdp $(source_dirs)
+
 format:
 	yapf -rip $(source_dirs)
 
 test:
-	dbus-run-session pytest -s
+	for py in python3.6 python3.7 python3.9 python3.8 ; do \
+		if hash $$py; then \
+			dbus-run-session $$py -m pytest -sv --cov=dbus_next || exit 1 ; \
+		fi \
+	done \
 
 docker-test:
-	docker build -t dbus-next .
-	docker run -it dbus-next
-
-coverage:
-	dbus-run-session pytest --cov=dbus_next
+	docker build -t dbus-next-test .
+	docker run -it dbus-next-test
 
 clean:
 	rm -rf dist dbus_next.egg-info build docs/_build

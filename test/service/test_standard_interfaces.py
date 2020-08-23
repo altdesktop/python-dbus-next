@@ -2,6 +2,7 @@ from dbus_next.service import ServiceInterface, dbus_property, PropertyAccess
 from dbus_next.signature import Variant
 from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageType, introspection as intr
+from dbus_next.constants import ErrorType
 
 import pytest
 
@@ -149,3 +150,49 @@ async def test_object_manager():
     assert reply_level1.body == [expected_reply]
     expected_reply.update(reply_ext)
     assert reply_root.body == [expected_reply]
+
+
+@pytest.mark.asyncio
+async def test_standard_interface_properties():
+    # standard interfaces have no properties, but should still behave correctly
+    # when you try to call the methods anyway (#49)
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
+    interface = ExampleInterface('test.interface1')
+    export_path = '/test/path'
+    bus1.export(export_path, interface)
+
+    for iface in [
+            'org.freedesktop.DBus.Properties', 'org.freedesktop.DBus.Introspectable',
+            'org.freedesktop.DBus.Peer', 'org.freedesktop.DBus.ObjectManager'
+    ]:
+
+        result = await bus2.call(
+            Message(destination=bus1.unique_name,
+                    path=export_path,
+                    interface='org.freedesktop.DBus.Properties',
+                    member='Get',
+                    signature='ss',
+                    body=[iface, 'anything']))
+        assert result.message_type is MessageType.ERROR
+        assert result.error_name == ErrorType.UNKNOWN_PROPERTY.value
+
+        result = await bus2.call(
+            Message(destination=bus1.unique_name,
+                    path=export_path,
+                    interface='org.freedesktop.DBus.Properties',
+                    member='Set',
+                    signature='ssv',
+                    body=[iface, 'anything', Variant('s', 'new thing')]))
+        assert result.message_type is MessageType.ERROR
+        assert result.error_name == ErrorType.UNKNOWN_PROPERTY.value
+
+        result = await bus2.call(
+            Message(destination=bus1.unique_name,
+                    path=export_path,
+                    interface='org.freedesktop.DBus.Properties',
+                    member='GetAll',
+                    signature='s',
+                    body=[iface]))
+        assert result.message_type is MessageType.METHOD_RETURN
+        assert result.body == [{}]
