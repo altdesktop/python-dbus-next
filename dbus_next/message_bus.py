@@ -504,7 +504,8 @@ class BaseMessageBus:
             ip_port = 0
 
             if transport == 'unix':
-                self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
+                self._sock = socket.socket(socket.AF_UNIX,
+                                           socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
                 self._stream = self._sock.makefile('rwb')
                 self._fd = self._sock.fileno()
 
