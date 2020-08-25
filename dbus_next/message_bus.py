@@ -507,37 +507,37 @@ class BaseMessageBus:
                 self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
                 self._stream = self._sock.makefile('rwb')
                 self._fd = self._sock.fileno()
-              
+
                 if 'path' in options:
                     filename = options['path']
                 elif 'abstract' in options:
                     filename = f'\0{options["abstract"]}'
                 else:
                     raise InvalidAddressError('got unix transport with unknown path specifier')
-                  
+
                 try:
                     self._sock.connect(filename)
                     break
                 except Exception as e:
                     err = e
-                    
+
             elif transport == 'tcp':
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self._stream = self._sock.makefile('rwb')
                 self._fd = self._sock.fileno()
-                
+
                 if 'host' in options:
                     ip_addr = options['host']
                 if 'port' in options:
                     ip_port = int(options['port'])
-                    
+
                 try:
                     self._sock.connect((ip_addr, ip_port))
                     self._sock.setblocking(False)
                     break
                 except Exception as e:
                     err = e
-              
+
             else:
                 raise InvalidAddressError(f'got unknown address transport: {transport}')
 
