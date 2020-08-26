@@ -106,7 +106,7 @@ class ProxyInterface(BaseProxyInterface):
             variant = msg.body[0]
             if variant.signature != intr_property.signature:
                 raise DBusError(ErrorType.CLIENT_ERROR,
-                                'property returned unexpected signature "{variant.signature}"', msg)
+                                f'property returned unexpected signature "{variant.signature}"', msg)
             return variant.value
 
         async def property_setter(val):
