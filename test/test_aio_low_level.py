@@ -145,6 +145,6 @@ async def test_connection_via_tcp():
     bus = MessageBus(bus_address="tcp:host=127.0.0.1,port=55556")
     assert bus._sock.getpeername()[0] == '127.0.0.1'
     assert bus._sock.getsockname()[0] == '127.0.0.1'
-    assert bus._sock.getblocking() is False
+    assert bus._sock.gettimeout() == 0
     assert bus._stream.closed is False
     server.close()
