@@ -1,6 +1,7 @@
 from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageType, MessageFlag
 
+import asyncio
 import pytest
 
 
@@ -136,3 +137,14 @@ async def test_sending_signals_between_buses(event_loop):
     assert signal.member == 'SomeSignal'
     assert signal.signature == 's'
     assert signal.body == ['a signal']
+
+
+@pytest.mark.asyncio
+async def test_connection_via_tcp():
+    server = await asyncio.start_server(None, '127.0.0.1', 55556)
+    bus = MessageBus(bus_address="tcp:host=127.0.0.1,port=55556")
+    assert bus._sock.getpeername()[0] == '127.0.0.1'
+    assert bus._sock.getsockname()[0] == '127.0.0.1'
+    assert bus._sock.gettimeout() == 0
+    assert bus._stream.closed is False
+    server.close()
