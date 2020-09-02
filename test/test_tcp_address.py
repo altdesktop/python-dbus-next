@@ -1,4 +1,5 @@
 from dbus_next.aio import MessageBus
+from dbus_next import Message
 from dbus_next._private.address import parse_address
 
 import asyncio
@@ -43,6 +44,19 @@ async def test_tcp_connection_with_forwarding(event_loop):
     closables.append(server)
 
     bus = await MessageBus(bus_address=f'tcp:host={host},port={port}').connect()
+
+    # basic tests to see if it works
+    result = await bus.call(
+        Message(destination='org.freedesktop.DBus',
+                path='/org/freedesktop/DBus',
+                interface='org.freedesktop.DBus.Peer',
+                member='Ping'))
+    assert result
+
+    intr = await bus.introspect('org.freedesktop.DBus', '/org/freedesktop/DBus')
+    obj = bus.get_proxy_object('org.freedesktop.DBus', '/org/freedesktop/DBus', intr)
+    iface = obj.get_interface('org.freedesktop.DBus.Peer')
+    await iface.call_ping()
 
     assert bus._sock.getpeername()[0] == host
     assert bus._sock.getsockname()[0] == host
