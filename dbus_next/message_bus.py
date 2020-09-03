@@ -556,12 +556,12 @@ class BaseMessageBus:
                 self._name_owners[msg.destination] = reply.sender
             callback(reply, err)
 
-        self._method_return_handlers[msg.serial] = reply_notify
-
         self.send(msg)
 
         if msg.flags & MessageFlag.NO_REPLY_EXPECTED:
             callback(None, None)
+        else:
+            self._method_return_handlers[msg.serial] = reply_notify
 
     @staticmethod
     def _check_callback_type(callback):
