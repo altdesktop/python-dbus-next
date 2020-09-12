@@ -15,6 +15,7 @@ class MarshallerStreamEndError(Exception):
 
 class Unmarshaller:
     def __init__(self, stream, sock=None):
+        self.unix_fds = []
         self.buf = bytearray()
         self.offset = 0
         self.stream = stream
@@ -218,6 +219,8 @@ class Unmarshaller:
     def _unmarshall(self):
         self.offset = 0
         self.endian, unix_fds = self.read_endian()
+        if not self.unix_fds:
+            self.unix_fds = unix_fds
 
         if self.endian != LITTLE_ENDIAN and self.endian != BIG_ENDIAN:
             raise InvalidMessageError('Expecting endianness as the first byte')
@@ -269,7 +272,7 @@ class Unmarshaller:
                                error_name=error_name,
                                reply_serial=reply_serial,
                                sender=sender,
-                               unix_fds=unix_fds,
+                               unix_fds=self.unix_fds,
                                signature=signature_tree,
                                body=body,
                                serial=serial)
