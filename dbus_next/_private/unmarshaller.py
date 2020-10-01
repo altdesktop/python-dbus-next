@@ -4,7 +4,8 @@ from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree, Variant
 from ..errors import InvalidMessageError
 
-from struct import unpack
+from codecs import decode
+from struct import unpack_from
 
 
 class MarshallerStreamEndError(Exception):
@@ -40,34 +41,41 @@ class Unmarshaller:
         }
 
     def read(self, n):
+        """
+        Read from underlying socket into buffer and advance offset accordingly.
+
+        :arg n:
+            Number of bytes to read. If not enough bytes are available in the
+            buffer, read more from it.
+
+        :returns:
+            Previous offset (before reading). To get the actual read bytes,
+            use the returned value and self.buf.
+        """
         # store previously read data in a buffer so we can resume on socket
         # interruptions
-        data = bytearray()
-        if self.offset < len(self.buf):
-            data = self.buf[self.offset:self.offset + n]
-            self.offset += len(data)
-            n -= len(data)
-        if n:
-            read = self.stream.read(n)
-            if read == b'':
+        missing_bytes = n - (len(self.buf) - self.offset)
+        if missing_bytes > 0:
+            data = self.stream.read(missing_bytes)
+            if data == b'':
                 raise EOFError()
-            elif read is None:
+            elif data is None:
                 raise MarshallerStreamEndError()
-            data.extend(read)
-            self.buf.extend(read)
-            if len(read) != n:
+            self.buf.extend(data)
+            if len(data) != missing_bytes:
                 raise MarshallerStreamEndError()
+        prev = self.offset
         self.offset += n
-        return bytes(data)
+        return prev
 
     def align(self, n):
         padding = n - self.offset % n
         if padding == 0 or padding == n:
-            return b''
-        return self.read(padding)
+            return
+        self.read(padding)
 
     def read_byte(self, _=None):
-        return self.read(1)[0]
+        return self.buf[self.read(1)]
 
     def read_boolean(self, _=None):
         data = self.read_uint32()
@@ -103,20 +111,22 @@ class Unmarshaller:
             fmt = '<' + fmt
         else:
             fmt = '>' + fmt
-        data = self.read(size)
-        return unpack(fmt, data)[0]
+        o = self.read(size)
+        return unpack_from(fmt, self.buf, o)[0]
 
     def read_string(self, _=None):
         str_length = self.read_uint32()
-        data = self.read(str_length)
-        self.read(1)
-        return data.decode()
+        o = self.read(str_length + 1)  # read terminating '\0' byte as well
+        # avoid buffer copies when slicing
+        str_mem_slice = memoryview(self.buf)[o:o + str_length]
+        return decode(str_mem_slice)
 
     def read_signature(self, _=None):
         signature_len = self.read_byte()
-        data = self.read(signature_len)
-        self.read(1)
-        return data.decode()
+        o = self.read(signature_len + 1)  # read terminating '\0' byte as well
+        # avoid buffer copies when slicing
+        sig_mem_slice = memoryview(self.buf)[o:o + signature_len]
+        return decode(sig_mem_slice)
 
     def read_variant(self, _=None):
         signature = self.read_signature()
@@ -159,7 +169,10 @@ class Unmarshaller:
                 key, value = self.read_dict_entry(child_type)
                 result[key] = value
         elif child_type.token == 'y':
-            result = self.read(array_length)
+            o = self.read(array_length)
+            # avoid buffer copies when slicing
+            array_mem_slice = memoryview(self.buf)[o:o + array_length]
+            result = array_mem_slice.tobytes()
         else:
             result = []
             while self.offset - beginning_offset < array_length:
