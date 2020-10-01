@@ -177,6 +177,8 @@ class Unmarshaller:
 
     def _unmarshall(self):
         self.offset = 0
+        self.read(16)  # read all preamble at once
+        self.offset -= 16
         self.endian = self.read_byte()
         if self.endian != LITTLE_ENDIAN and self.endian != BIG_ENDIAN:
             raise InvalidMessageError('Expecting endianness as the first byte')
@@ -190,6 +192,11 @@ class Unmarshaller:
 
         body_len = self.read_uint32()
         serial = self.read_uint32()
+
+        # read the header len and backtrack since it needs to be read again
+        header_len = self.read_uint32()
+        self.read(header_len + body_len)  # read all header and body at once
+        self.offset -= 4 + header_len + body_len
 
         header_fields = {HeaderField.UNIX_FDS.name: []}
         for field_struct in self.read_argument(SignatureTree('a(yv)').types[0]):
