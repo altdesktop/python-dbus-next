@@ -30,7 +30,7 @@ class Unmarshaller:
             't': self.read_uint64,
             'd': self.read_double,
             'h': self.read_uint32,
-            'o': self.read_object_path,
+            'o': self.read_string,
             's': self.read_string,
             'g': self.read_signature,
             'a': self.read_array,
@@ -77,52 +77,34 @@ class Unmarshaller:
             return False
 
     def read_int16(self, _=None):
-        self.align(2)
-        fmt = '<h' if self.endian == LITTLE_ENDIAN else '>h'
-        data = self.read(2)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('h', 2)
 
     def read_uint16(self, _=None):
-        self.align(2)
-        fmt = '<H' if self.endian == LITTLE_ENDIAN else '>H'
-        data = self.read(2)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('H', 2)
 
     def read_int32(self, _=None):
-        self.align(4)
-        fmt = '<i' if self.endian == LITTLE_ENDIAN else '>i'
-        data = self.read(4)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('i', 4)
 
     def read_uint32(self, _=None):
-        self.align(4)
-        fmt = '<I' if self.endian == LITTLE_ENDIAN else '>I'
-        data = self.read(4)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('I', 4)
 
     def read_int64(self, _=None):
-        self.align(8)
-        fmt = '<q' if self.endian == LITTLE_ENDIAN else '>q'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('q', 8)
 
     def read_uint64(self, _=None):
-        self.align(8)
-        fmt = '<Q' if self.endian == LITTLE_ENDIAN else '>Q'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('Q', 8)
 
     def read_double(self, _=None):
-        self.align(8)
-        fmt = '<d' if self.endian == LITTLE_ENDIAN else '>d'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('d', 8)
 
-    def read_object_path(self, _=None):
-        path_length = self.read_uint32()
-        data = self.read(path_length)
-        self.read(1)
-        return data.decode()
+    def read_ctype(self, fmt, size):
+        self.align(size)
+        if self.endian == LITTLE_ENDIAN:
+            fmt = '<' + fmt
+        else:
+            fmt = '>' + fmt
+        data = self.read(size)
+        return unpack(fmt, data)[0]
 
     def read_string(self, _=None):
         str_length = self.read_uint32()
