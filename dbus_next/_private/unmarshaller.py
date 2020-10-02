@@ -40,13 +40,15 @@ class Unmarshaller:
             'v': self.read_variant
         }
 
-    def read(self, n):
+    def read(self, n, prefetch=False):
         """
         Read from underlying socket into buffer and advance offset accordingly.
 
         :arg n:
             Number of bytes to read. If not enough bytes are available in the
             buffer, read more from it.
+        :arg prefetch:
+            Do not update current offset after reading.
 
         :returns:
             Previous offset (before reading). To get the actual read bytes,
@@ -65,7 +67,8 @@ class Unmarshaller:
             if len(data) != missing_bytes:
                 raise MarshallerStreamEndError()
         prev = self.offset
-        self.offset += n
+        if not prefetch:
+            self.offset += n
         return prev
 
     def align(self, n):
@@ -190,8 +193,7 @@ class Unmarshaller:
 
     def _unmarshall(self):
         self.offset = 0
-        self.read(16)  # read all preamble at once
-        self.offset -= 16
+        self.read(16, prefetch=True)
         self.endian = self.read_byte()
         if self.endian != LITTLE_ENDIAN and self.endian != BIG_ENDIAN:
             raise InvalidMessageError('Expecting endianness as the first byte')
@@ -206,10 +208,10 @@ class Unmarshaller:
         body_len = self.read_uint32()
         serial = self.read_uint32()
 
-        # read the header len and backtrack since it needs to be read again
         header_len = self.read_uint32()
-        self.read(header_len + body_len)  # read all header and body at once
-        self.offset -= 4 + header_len + body_len
+        self.read(header_len + body_len, prefetch=True)
+        # backtrack offset since header array length needs to be read again
+        self.offset -= 4
 
         header_fields = {HeaderField.UNIX_FDS.name: []}
         for field_struct in self.read_argument(SignatureTree('a(yv)').types[0]):
