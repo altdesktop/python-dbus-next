@@ -40,7 +40,7 @@ class Arg:
             type_ = signature
             signature = signature.signature
         else:
-            tree = SignatureTree(signature)
+            tree = SignatureTree._get(signature)
             if len(tree.types) != 1:
                 raise InvalidIntrospectionError(
                     f'an argument must have a single complete type. (has {len(tree.types)} types)')
@@ -241,7 +241,7 @@ class Property:
                  access: PropertyAccess = PropertyAccess.READWRITE):
         assert_member_name_valid(name)
 
-        tree = SignatureTree(signature)
+        tree = SignatureTree._get(signature)
         if len(tree.types) != 1:
             raise InvalidIntrospectionError(
                 f'properties must have a single complete type. (has {len(tree.types)} types)')

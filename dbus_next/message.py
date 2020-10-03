@@ -79,7 +79,7 @@ class Message:
         self.sender = sender
         self.unix_fds = unix_fds
         self.signature = signature.signature if type(signature) is SignatureTree else signature
-        self.signature_tree = signature if type(signature) is SignatureTree else SignatureTree(
+        self.signature_tree = signature if type(signature) is SignatureTree else SignatureTree._get(
             signature)
         self.body = body
         self.serial = serial

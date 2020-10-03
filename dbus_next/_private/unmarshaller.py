@@ -133,7 +133,7 @@ class Unmarshaller:
 
     def read_variant(self, _=None):
         signature = self.read_signature()
-        signature_tree = SignatureTree(signature)
+        signature_tree = SignatureTree._get(signature)
         value = self.read_argument(signature_tree.types[0])
         return Variant(signature_tree, value)
 
@@ -214,7 +214,7 @@ class Unmarshaller:
         self.offset -= 4
 
         header_fields = {HeaderField.UNIX_FDS.name: []}
-        for field_struct in self.read_argument(SignatureTree('a(yv)').types[0]):
+        for field_struct in self.read_argument(SignatureTree._get('a(yv)').types[0]):
             field = HeaderField(field_struct[0])
             if field == HeaderField.UNIX_FDS:
                 header_fields[field.name].append(field_struct[1].value)
@@ -231,7 +231,7 @@ class Unmarshaller:
         destination = header_fields.get(HeaderField.DESTINATION.name)
         sender = header_fields.get(HeaderField.SENDER.name)
         signature = header_fields.get(HeaderField.SIGNATURE.name, '')
-        signature_tree = SignatureTree(signature)
+        signature_tree = SignatureTree._get(signature)
         unix_fds = header_fields.get(HeaderField.UNIX_FDS.name)
 
         body = []
