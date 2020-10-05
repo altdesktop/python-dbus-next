@@ -228,7 +228,8 @@ class Unmarshaller:
         serial = self.read_uint32()
 
         header_len = self.read_uint32()
-        self.read(header_len + body_len, prefetch=True)
+        msg_len = header_len + self._padding(header_len, 8) + body_len
+        self.read(msg_len, prefetch=True)
         # backtrack offset since header array length needs to be read again
         self.offset -= 4
 
