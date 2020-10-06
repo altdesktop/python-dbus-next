@@ -71,11 +71,30 @@ class Unmarshaller:
             self.offset += n
         return prev
 
+    @staticmethod
+    def _padding(offset, align):
+        """
+        Get padding bytes to get to the next align bytes mark.
+
+        For any align value, the correct padding formula is:
+
+            (align - (offset % align)) % align
+
+        However, if align is a power of 2 (always the case here), the slow MOD
+        operator can be replaced by a bitwise AND:
+
+            (align - (offset & (align - 1))) & (align - 1)
+
+        Which can be simplified to:
+
+            (-offset) & (align - 1)
+        """
+        return (-offset) & (align - 1)
+
     def align(self, n):
-        padding = n - self.offset % n
-        if padding == 0 or padding == n:
-            return
-        self.read(padding)
+        padding = self._padding(self.offset, n)
+        if padding > 0:
+            self.read(padding)
 
     def read_byte(self, _=None):
         return self.buf[self.read(1)]
@@ -209,7 +228,8 @@ class Unmarshaller:
         serial = self.read_uint32()
 
         header_len = self.read_uint32()
-        self.read(header_len + body_len, prefetch=True)
+        msg_len = header_len + self._padding(header_len, 8) + body_len
+        self.read(msg_len, prefetch=True)
         # backtrack offset since header array length needs to be read again
         self.offset -= 4
 
