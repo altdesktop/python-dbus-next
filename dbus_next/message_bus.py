@@ -504,8 +504,7 @@ class BaseMessageBus:
             ip_port = 0
 
             if transport == 'unix':
-                self._sock = socket.socket(socket.AF_UNIX,
-                                           socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
+                self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self._stream = self._sock.makefile('rwb')
                 self._fd = self._sock.fileno()
 
@@ -518,6 +517,7 @@ class BaseMessageBus:
 
                 try:
                     self._sock.connect(filename)
+                    self._sock.setblocking(False)
                     break
                 except Exception as e:
                     err = e
