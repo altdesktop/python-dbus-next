@@ -1,5 +1,19 @@
 # Changelog
 
+## Version 0.1.4
+
+This version adds some bugfixes and new features.
+
+* Support tcp transport addresses (#57)
+* Add support for the annonymous authentication protocol (#32)
+* Add flags kwarg to aio high level client method call (#55)
+* Allow subclassing of DBusError (#42)
+* Fix exception in aio message handler loop on task cancellation (ff165aa)
+* Improve error messages (#46, #59)
+* Fix match rule memory leak bug (508edf8)
+* Don't add match rules for high level client by default (615218f)
+* Add empty properties interface to standard interfaces (#49)
+
 ## Version 0.1.3
 
 This version adds some bugfixes and new features.

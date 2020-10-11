@@ -214,10 +214,11 @@ class MessageBus(BaseMessageBus):
         future = self._loop.create_future()
 
         def reply_handler(reply, err):
-            if err:
-                future.set_exception(err)
-            else:
-                future.set_result(reply)
+            if not future.done():
+                if err:
+                    future.set_exception(err)
+                else:
+                    future.set_result(reply)
 
         self._call(msg, reply_handler)
 

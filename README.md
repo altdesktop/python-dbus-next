@@ -2,7 +2,9 @@
 
 The next great DBus library for Python.
 
-[Documentation](https://python-dbus-next.readthedocs.io/en/latest/).
+[Documentation](https://python-dbus-next.readthedocs.io/en/latest/)
+
+[Chat](https://discord.gg/UdbXHVX)
 
 python-dbus-next is a Python library for DBus that aims to be a fully featured high level library primarily geared towards integration of applications into Linux desktop and mobile environments.
 

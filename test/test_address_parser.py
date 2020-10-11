@@ -20,6 +20,10 @@ def test_valid_addresses():
         })],
         'unix:escaped=hello%20world': [('unix', {
             'escaped': 'hello world'
+        })],
+        'tcp:host=127.0.0.1,port=55556': [('tcp', {
+            'host': '127.0.0.1',
+            'port': '55556'
         })]
     }
 

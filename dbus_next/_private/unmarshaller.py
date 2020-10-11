@@ -1,12 +1,13 @@
 from ..message import Message
-from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION, MESSAGE_HEADER_LEN
+from .constants import HeaderField, LITTLE_ENDIAN, BIG_ENDIAN, PROTOCOL_VERSION
 from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree, Variant
 from ..errors import InvalidMessageError
 
 import array
 import socket
-from struct import unpack
+from codecs import decode
+from struct import unpack_from
 
 
 class MarshallerStreamEndError(Exception):
@@ -34,7 +35,7 @@ class Unmarshaller:
             't': self.read_uint64,
             'd': self.read_double,
             'h': self.read_uint32,
-            'o': self.read_object_path,
+            'o': self.read_string,
             's': self.read_string,
             'g': self.read_signature,
             'a': self.read_array,
@@ -43,54 +44,82 @@ class Unmarshaller:
             'v': self.read_variant
         }
 
-    def read(self, n):
+    def read(self, n, prefetch=False):
+        """
+        Read from underlying socket into buffer and advance offset accordingly.
+
+        :arg n:
+            Number of bytes to read. If not enough bytes are available in the
+            buffer, read more from it.
+        :arg prefetch:
+            Do not update current offset after reading.
+
+        :returns:
+            Previous offset (before reading). To get the actual read bytes,
+            use the returned value and self.buf.
+        """
+        # On our first read, if the socket was passed to the unmarshaller,
+        # check for any unix fds that might be passed
+        if not self.buf and self.sock is not None:
+            unix_fds = array.array("i")
+            try:
+                # XXX: maximum of 16 fds
+                msg, ancdata, *_ = self.sock.recvmsg(n, socket.CMSG_LEN(16 * unix_fds.itemsize))
+                self.buf = bytearray(msg)
+                for level, type_, data in ancdata:
+                    if not (level == socket.SOL_SOCKET and type_ == socket.SCM_RIGHTS):
+                        continue
+
+                    unix_fds.frombytes(data[:len(data) - (len(data) % unix_fds.itemsize)])
+                    self.unix_fds = list(unix_fds)
+            except BlockingIOError:
+                # no fds?
+                pass
+
         # store previously read data in a buffer so we can resume on socket
         # interruptions
-        data = bytearray()
-        if self.offset < len(self.buf):
-            data = self.buf[self.offset:self.offset + n]
-            self.offset += len(data)
-            n -= len(data)
-        if n:
-            read = self.stream.read(n)
-            if read == b'':
+        missing_bytes = n - (len(self.buf) - self.offset)
+        if missing_bytes > 0:
+            data = self.stream.read(missing_bytes)
+            if data == b'':
                 raise EOFError()
-            elif read is None:
+            elif data is None:
                 raise MarshallerStreamEndError()
-            data.extend(read)
-            self.buf.extend(read)
-            if len(read) != n:
+            self.buf.extend(data)
+            if len(data) != missing_bytes:
                 raise MarshallerStreamEndError()
-        self.offset += n
-        return bytes(data)
+        prev = self.offset
+        if not prefetch:
+            self.offset += n
+        return prev
+
+    @staticmethod
+    def _padding(offset, align):
+        """
+        Get padding bytes to get to the next align bytes mark.
+
+        For any align value, the correct padding formula is:
+
+            (align - (offset % align)) % align
+
+        However, if align is a power of 2 (always the case here), the slow MOD
+        operator can be replaced by a bitwise AND:
+
+            (align - (offset & (align - 1))) & (align - 1)
+
+        Which can be simplified to:
+
+            (-offset) & (align - 1)
+        """
+        return (-offset) & (align - 1)
 
     def align(self, n):
-        padding = n - self.offset % n
-        if padding == 0 or padding == n:
-            return b''
-        return self.read(padding)
-
-    def read_endian(self, _=None):
-        unix_fds = array.array("i")
-
-        if self.sock:
-            try:
-                msg, ancdata, *_ = self.sock.recvmsg(MESSAGE_HEADER_LEN,
-                                                     socket.CMSG_LEN(16 * unix_fds.itemsize),
-                                                     socket.MSG_PEEK)
-            except BlockingIOError:
-                return self.read_byte(), list(unix_fds)
-
-            for level, type, data in ancdata:
-                if not (level == socket.SOL_SOCKET and type == socket.SCM_RIGHTS):
-                    continue
-
-                unix_fds.frombytes(data[:len(data) - (len(data) % unix_fds.itemsize)])
-
-        return self.read_byte(), list(unix_fds)
+        padding = self._padding(self.offset, n)
+        if padding > 0:
+            self.read(padding)
 
     def read_byte(self, _=None):
-        return self.read(1)[0]
+        return self.buf[self.read(1)]
 
     def read_boolean(self, _=None):
         data = self.read_uint32()
@@ -100,68 +129,52 @@ class Unmarshaller:
             return False
 
     def read_int16(self, _=None):
-        self.align(2)
-        fmt = '<h' if self.endian == LITTLE_ENDIAN else '>h'
-        data = self.read(2)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('h', 2)
 
     def read_uint16(self, _=None):
-        self.align(2)
-        fmt = '<H' if self.endian == LITTLE_ENDIAN else '>H'
-        data = self.read(2)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('H', 2)
 
     def read_int32(self, _=None):
-        self.align(4)
-        fmt = '<i' if self.endian == LITTLE_ENDIAN else '>i'
-        data = self.read(4)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('i', 4)
 
     def read_uint32(self, _=None):
-        self.align(4)
-        fmt = '<I' if self.endian == LITTLE_ENDIAN else '>I'
-        data = self.read(4)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('I', 4)
 
     def read_int64(self, _=None):
-        self.align(8)
-        fmt = '<q' if self.endian == LITTLE_ENDIAN else '>q'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('q', 8)
 
     def read_uint64(self, _=None):
-        self.align(8)
-        fmt = '<Q' if self.endian == LITTLE_ENDIAN else '>Q'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('Q', 8)
 
     def read_double(self, _=None):
-        self.align(8)
-        fmt = '<d' if self.endian == LITTLE_ENDIAN else '>d'
-        data = self.read(8)
-        return unpack(fmt, data)[0]
+        return self.read_ctype('d', 8)
 
-    def read_object_path(self, _=None):
-        path_length = self.read_uint32()
-        data = self.read(path_length)
-        self.read(1)
-        return data.decode()
+    def read_ctype(self, fmt, size):
+        self.align(size)
+        if self.endian == LITTLE_ENDIAN:
+            fmt = '<' + fmt
+        else:
+            fmt = '>' + fmt
+        o = self.read(size)
+        return unpack_from(fmt, self.buf, o)[0]
 
     def read_string(self, _=None):
         str_length = self.read_uint32()
-        data = self.read(str_length)
-        self.read(1)
-        return data.decode()
+        o = self.read(str_length + 1)  # read terminating '\0' byte as well
+        # avoid buffer copies when slicing
+        str_mem_slice = memoryview(self.buf)[o:o + str_length]
+        return decode(str_mem_slice)
 
     def read_signature(self, _=None):
         signature_len = self.read_byte()
-        data = self.read(signature_len)
-        self.read(1)
-        return data.decode()
+        o = self.read(signature_len + 1)  # read terminating '\0' byte as well
+        # avoid buffer copies when slicing
+        sig_mem_slice = memoryview(self.buf)[o:o + signature_len]
+        return decode(sig_mem_slice)
 
     def read_variant(self, _=None):
         signature = self.read_signature()
-        signature_tree = SignatureTree(signature)
+        signature_tree = SignatureTree._get(signature)
         value = self.read_argument(signature_tree.types[0])
         return Variant(signature_tree, value)
 
@@ -200,7 +213,10 @@ class Unmarshaller:
                 key, value = self.read_dict_entry(child_type)
                 result[key] = value
         elif child_type.token == 'y':
-            result = self.read(array_length)
+            o = self.read(array_length)
+            # avoid buffer copies when slicing
+            array_mem_slice = memoryview(self.buf)[o:o + array_length]
+            result = array_mem_slice.tobytes()
         else:
             result = []
             while self.offset - beginning_offset < array_length:
@@ -218,10 +234,8 @@ class Unmarshaller:
 
     def _unmarshall(self):
         self.offset = 0
-        self.endian, unix_fds = self.read_endian()
-        if not self.unix_fds:
-            self.unix_fds = unix_fds
-
+        self.read(16, prefetch=True)
+        self.endian = self.read_byte()
         if self.endian != LITTLE_ENDIAN and self.endian != BIG_ENDIAN:
             raise InvalidMessageError('Expecting endianness as the first byte')
         message_type = MessageType(self.read_byte())
@@ -235,8 +249,14 @@ class Unmarshaller:
         body_len = self.read_uint32()
         serial = self.read_uint32()
 
-        header_fields = {}
-        for field_struct in self.read_argument(SignatureTree('a(yv)').types[0]):
+        header_len = self.read_uint32()
+        msg_len = header_len + self._padding(header_len, 8) + body_len
+        self.read(msg_len, prefetch=True)
+        # backtrack offset since header array length needs to be read again
+        self.offset -= 4
+
+        header_fields = {HeaderField.UNIX_FDS.name: []}
+        for field_struct in self.read_argument(SignatureTree._get('a(yv)').types[0]):
             field = HeaderField(field_struct[0])
             if field == HeaderField.UNIX_FDS:
                 continue
@@ -253,8 +273,7 @@ class Unmarshaller:
         destination = header_fields.get(HeaderField.DESTINATION.name)
         sender = header_fields.get(HeaderField.SENDER.name)
         signature = header_fields.get(HeaderField.SIGNATURE.name, '')
-        signature_tree = SignatureTree(signature)
-        # TODO: check unix_fds against the header
+        signature_tree = SignatureTree._get(signature)
         # unix_fds = header_fields.get(HeaderField.UNIX_FDS.name)
 
         body = []

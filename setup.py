@@ -7,13 +7,8 @@ import os
 from setuptools import setup, find_packages
 
 # Package meta-data.
-NAME = 'dbus_next'
 DESCRIPTION = 'A zero-dependency DBus library for Python with asyncio support'
-URL = 'https://github.com/acrisci/python-dbus-next'
-EMAIL = 'tony@dubstepdish.com'
-AUTHOR = 'Tony Crisci'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.1.3'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
@@ -28,42 +23,29 @@ EXTRAS = {}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-# Import the README and use it as the long-description.
-# Note: this will only work if 'README.md' is present in your MANIFEST.in file!
-try:
-    with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-        long_description = '\n' + f.read()
-except FileNotFoundError:
-    long_description = DESCRIPTION
-
-# Load the package's __version__.py module as a dictionary.
 about = {}
-if not VERSION:
-    project_slug = NAME.lower().replace('-', '_').replace(' ', '_')
-    with open(os.path.join(here, project_slug, '__version__.py')) as f:
-        exec(f.read(), about)
-else:
-    about['__version__'] = VERSION
+with open(os.path.join(here, 'dbus_next', '__version__.py')) as f:
+    exec(f.read(), about)
 
+with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
+    long_description = '\n' + f.read()
 
-# Where the magic happens:
 setup(
-    name=NAME,
+    name=about['__title__'],
     version=about['__version__'],
     description=DESCRIPTION,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author=AUTHOR,
-    author_email=EMAIL,
+    author=about['__author__'],
+    author_email=about['__author_email__'],
     python_requires=REQUIRES_PYTHON,
-    url=URL,
+    url=about['__url__'],
     packages=find_packages(exclude=['test', '*.test', '*.test.*', 'test.*']),
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
     license='MIT',
     classifiers=[
-        # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Development Status :: 3 - Alpha',
         'Environment :: X11 Applications',
@@ -78,5 +60,4 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
-    ]
-)
+    ])

@@ -23,6 +23,7 @@ class SignatureType:
     def __init__(self, token):
         self.token = token
         self.children = []
+        self._signature = None
 
     def __eq__(self, other):
         if type(other) is SignatureType:
@@ -48,7 +49,10 @@ class SignatureType:
 
     @property
     def signature(self) -> str:
-        return self._collapse()
+        if self._signature is not None:
+            return self._signature
+        self._signature = self._collapse()
+        return self._signature
 
     @staticmethod
     def _parse_next(signature):
@@ -306,6 +310,16 @@ class SignatureTree:
     :raises:
         :class:`InvalidSignatureError` if the given signature is not valid.
     """
+
+    _cache = {}
+
+    @staticmethod
+    def _get(signature: str = ''):
+        if signature in SignatureTree._cache:
+            return SignatureTree._cache[signature]
+        SignatureTree._cache[signature] = SignatureTree(signature)
+        return SignatureTree._cache[signature]
+
     def __init__(self, signature: str = ''):
         self.signature = signature
 

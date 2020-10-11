@@ -16,18 +16,19 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__) + '/..'))
 
+from dbus_next.__version__ import __title__, __author__, __version__, __copyright__
+_project_slug = __title__.replace('_', '-')
 
 # -- Project information -----------------------------------------------------
 
-project = 'dbus-next'
-copyright = '2019, Tony Crisci'
-author = 'Tony Crisci'
+project = _project_slug
+copyright = __copyright__
+author = __author__
 
 # The short X.Y version
-version = ''
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = '0.1.3'
-
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -39,10 +40,7 @@ release = '0.1.3'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.githubpages',
-    'sphinxcontrib.asyncio',
-    'sphinxcontrib.fulltoc'
+    'sphinx.ext.autodoc', 'sphinx.ext.githubpages', 'sphinxcontrib.asyncio', 'sphinxcontrib.fulltoc'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -72,7 +70,6 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -101,12 +98,10 @@ html_static_path = ['_static']
 #
 # html_sidebars = {}
 
-
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'dbus-nextdoc'
-
 
 # -- Options for LaTeX output ------------------------------------------------
 
@@ -132,20 +127,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'dbus-next.tex', 'dbus-next Documentation',
-     'Tony Crisci', 'manual'),
+    (master_doc, 'dbus-next.tex', 'dbus-next Documentation', __author__, 'manual'),
 ]
-
 
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'dbus-next', 'dbus-next Documentation',
-     [author], 1)
-]
-
+man_pages = [(master_doc, _project_slug, 'dbus-next Documentation', [author], 1)]
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -153,10 +142,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'dbus-next', 'dbus-next Documentation',
-     author, 'dbus-next', 'One line description of project.',
-     'Miscellaneous'),
+    (master_doc, _project_slug, 'dbus-next Documentation', author, _project_slug,
+     'One line description of project.', 'Miscellaneous'),
 ]
-
 
 # -- Extension configuration -------------------------------------------------
