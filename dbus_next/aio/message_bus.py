@@ -43,12 +43,14 @@ class MessageBus(BaseMessageBus):
     def __init__(self,
                  bus_address: str = None,
                  bus_type: BusType = BusType.SESSION,
-                 auth: Authenticator = None):
+                 auth: Authenticator = None,
+                 negotiate_unix_fd=False):
         super().__init__(bus_address, bus_type, ProxyObject)
+        self._negotiate_unix_fd = negotiate_unix_fd
         self._loop = asyncio.get_event_loop()
-        self._unmarshaller = Unmarshaller(self._stream, self._sock)
+        self._unmarshaller = self._create_unmarshaller()
         if auth is None:
-            self._auth = AuthExternal(enable_fds=True)
+            self._auth = AuthExternal()
         else:
             self._auth = auth
 
@@ -298,7 +300,7 @@ class MessageBus(BaseMessageBus):
             while True:
                 if self._unmarshaller.unmarshall():
                     self._on_message(self._unmarshaller.message)
-                    self._unmarshaller = Unmarshaller(self._stream, self._sock)
+                    self._unmarshaller = self._create_unmarshaller()
                 else:
                     break
         except Exception as e:
@@ -314,7 +316,7 @@ class MessageBus(BaseMessageBus):
     async def _authenticate(self):
         await self._loop.sock_sendall(self._sock, b'\0')
 
-        first_line = self._auth._authentication_start()
+        first_line = self._auth._authentication_start(negotiate_unix_fd=self._negotiate_unix_fd)
 
         if first_line is not None:
             if type(first_line) is not str:
@@ -328,3 +330,9 @@ class MessageBus(BaseMessageBus):
                 self._stream.flush()
             if response == 'BEGIN':
                 break
+
+    def _create_unmarshaller(self):
+        sock = None
+        if self._negotiate_unix_fd:
+            sock = self._sock
+        return Unmarshaller(self._stream, sock)

@@ -35,7 +35,7 @@ class Authenticator:
 
     :seealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-    def _authentication_start(self):
+    def _authentication_start(self, negotiate_unix_fd=False):
         raise NotImplementedError(
             'authentication_start() must be implemented in the inheriting class')
 
@@ -53,11 +53,12 @@ class AuthExternal(Authenticator):
 
     :sealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-    def __init__(self, enable_fds=False):
-        self.enable_fds = enable_fds
+    def __init__(self):
+        self.negotiate_unix_fd = False
         self.negotiating_fds = False
 
-    def _authentication_start(self) -> str:
+    def _authentication_start(self, negotiate_unix_fd=False) -> str:
+        self.negotiate_unix_fd = negotiate_unix_fd
         hex_uid = str(os.getuid()).encode().hex()
         return f'AUTH EXTERNAL {hex_uid}'
 
@@ -65,17 +66,13 @@ class AuthExternal(Authenticator):
         response, args = _AuthResponse.parse(line)
 
         if response is _AuthResponse.OK:
-            if self.enable_fds:
-                self.NEGOTIATING_FDS = True
+            if self.negotiate_unix_fd:
+                self.negotiating_fds = True
                 return "NEGOTIATE_UNIX_FD"
             else:
                 return "BEGIN"
 
         if response is _AuthResponse.AGREE_UNIX_FD:
-            return "BEGIN"
-
-        if response is _AuthResponse.ERROR and self.NEGOTIATING_FDS:
-            # TODO: logger?
             return "BEGIN"
 
         raise AuthError(f'authentication failed: {response.value}: {args}')
@@ -87,7 +84,11 @@ class AuthAnnonymous(Authenticator):
 
     :sealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-    def _authentication_start(self) -> str:
+    def _authentication_start(self, negotiate_unix_fd=False) -> str:
+        if negotiate_unix_fd:
+            raise AuthError(
+                'annonymous authentication does not support negotiating unix fds right now')
+
         return 'AUTH ANONYMOUS'
 
     def _receive_line(self, line: str) -> str:

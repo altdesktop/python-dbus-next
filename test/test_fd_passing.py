@@ -21,8 +21,8 @@ class ExampleInterface(ServiceInterface):
 
 @pytest.mark.asyncio
 async def test_sending_file_descriptor():
-    bus1 = await MessageBus().connect()
-    bus2 = await MessageBus().connect()
+    bus1 = await MessageBus(negotiate_unix_fd=True).connect()
+    bus2 = await MessageBus(negotiate_unix_fd=True).connect()
 
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
@@ -51,7 +51,7 @@ async def test_sending_file_descriptor_with_proxy():
     path = '/test/path'
     interface_name = 'test.interface'
 
-    bus = await MessageBus().connect()
+    bus = await MessageBus(negotiate_unix_fd=True).connect()
     interface = ExampleInterface(interface_name)
     bus.export(path, interface)
     await bus.request_name(name)
