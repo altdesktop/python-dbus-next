@@ -65,6 +65,12 @@ class ProxyInterface(BaseProxyInterface):
 
         interface.on_[SIGNAL](callback)
 
+    To *stop listening to a signal* use this form:
+
+    .. code-block:: python3
+
+        interface.off_[SIGNAL](callback)
+
     Where ``SIGNAL`` is the name of the signal converted to snake case.
 
     DBus signals are exposed with an event-callback interface. The provided
