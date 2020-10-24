@@ -4,6 +4,7 @@ from dbus_next.signature import SignatureTree, Variant
 from dbus_next.aio import MessageBus
 from dbus_next import Message, MessageFlag
 import socket
+import os
 
 import pytest
 
@@ -17,6 +18,60 @@ class ExampleInterface(ServiceInterface):
     async def echofd(self) -> 'h':
         f = socket.socket()
         return f
+
+
+def assert_fds_equal(fd1, fd2):
+    stat1 = os.fstat(fd1)
+    stat2 = os.fstat(fd2)
+
+    assert stat1.st_dev == stat2.st_dev
+    assert stat1.st_ino == stat2.st_ino
+    assert stat1.st_rdev == stat2.st_rdev
+
+
+@pytest.mark.asyncio
+async def test_sending_file_descriptor_low_level():
+    bus1 = await MessageBus(negotiate_unix_fd=True).connect()
+    bus2 = await MessageBus(negotiate_unix_fd=True).connect()
+
+    f = open(os.devnull, 'r')
+    fd_before = f.fileno()
+    fd_after = None
+
+    msg = Message(destination=bus1.unique_name,
+                  path='/org/test/path',
+                  interface='org.test.iface',
+                  member='SomeMember',
+                  body=[0],
+                  signature='h',
+                  unix_fds=[fd_before])
+
+    def message_handler(sent):
+        nonlocal fd_after
+        if sent.sender == bus2.unique_name and sent.serial == msg.serial:
+            assert sent.path == msg.path
+            assert sent.serial == msg.serial
+            assert sent.interface == msg.interface
+            assert sent.member == msg.member
+            assert sent.body == [0]
+            assert len(sent.unix_fds) == 1
+            fd_after = sent.unix_fds[0]
+            bus1.send(Message.new_method_return(sent, 's', ['got it']))
+            bus1.remove_message_handler(message_handler)
+            return True
+
+    bus1.add_message_handler(message_handler)
+
+    reply = await bus2.call(msg)
+    assert reply.body == ['got it']
+    assert fd_after is not None
+
+    assert_fds_equal(fd_before, fd_after)
+
+    for fd in [fd_before, fd_after]:
+        os.close(fd)
+    for bus in [bus1, bus2]:
+        bus.disconnect()
 
 
 @pytest.mark.asyncio
