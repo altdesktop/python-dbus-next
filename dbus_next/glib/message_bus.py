@@ -152,6 +152,8 @@ class MessageBus(BaseMessageBus):
 
         super().__init__(bus_address, bus_type, ProxyObject)
         self._main_context = GLib.main_context_default()
+        # buffer messages until connect
+        self._buffered_messages = []
 
         if auth is None:
             self._auth = AuthExternal()

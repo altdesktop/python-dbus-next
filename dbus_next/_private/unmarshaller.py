@@ -9,6 +9,8 @@ import socket
 from codecs import decode
 from struct import unpack_from
 
+MAX_UNIX_FDS = 16
+
 
 class MarshallerStreamEndError(Exception):
     pass
@@ -58,29 +60,33 @@ class Unmarshaller:
             Previous offset (before reading). To get the actual read bytes,
             use the returned value and self.buf.
         """
-        # On our first read, if the socket was passed to the unmarshaller,
-        # check for any unix fds that might be passed
-        if not self.buf and self.sock is not None:
-            unix_fds = array.array("i")
-            try:
-                # XXX: maximum of 16 fds
-                msg, ancdata, *_ = self.sock.recvmsg(n, socket.CMSG_LEN(16 * unix_fds.itemsize))
-                self.buf = bytearray(msg)
+        def read_sock(length):
+            '''reads from the socket, storing any fds sent and handling errors
+            from the read itself'''
+            if self.sock is not None:
+                unix_fd_list = array.array("i")
+
+                try:
+                    msg, ancdata, *_ = self.sock.recvmsg(
+                        length, socket.CMSG_LEN(MAX_UNIX_FDS * unix_fd_list.itemsize))
+                except BlockingIOError:
+                    raise MarshallerStreamEndError()
+
                 for level, type_, data in ancdata:
                     if not (level == socket.SOL_SOCKET and type_ == socket.SCM_RIGHTS):
                         continue
+                    unix_fd_list.frombytes(data[:len(data) - (len(data) % unix_fd_list.itemsize)])
+                    self.unix_fds.extend(list(unix_fd_list))
 
-                    unix_fds.frombytes(data[:len(data) - (len(data) % unix_fds.itemsize)])
-                    self.unix_fds = list(unix_fds)
-            except BlockingIOError:
-                # no fds?
-                pass
+                return msg
+            else:
+                return self.stream.read(length)
 
         # store previously read data in a buffer so we can resume on socket
         # interruptions
         missing_bytes = n - (len(self.buf) - self.offset)
         if missing_bytes > 0:
-            data = self.stream.read(missing_bytes)
+            data = read_sock(missing_bytes)
             if data == b'':
                 raise EOFError()
             elif data is None:
@@ -255,12 +261,9 @@ class Unmarshaller:
         # backtrack offset since header array length needs to be read again
         self.offset -= 4
 
-        header_fields = {HeaderField.UNIX_FDS.name: []}
+        header_fields = {}
         for field_struct in self.read_argument(SignatureTree._get('a(yv)').types[0]):
             field = HeaderField(field_struct[0])
-            if field == HeaderField.UNIX_FDS:
-                continue
-
             header_fields[field.name] = field_struct[1].value
 
         self.align(8)
@@ -274,7 +277,7 @@ class Unmarshaller:
         sender = header_fields.get(HeaderField.SENDER.name)
         signature = header_fields.get(HeaderField.SIGNATURE.name, '')
         signature_tree = SignatureTree._get(signature)
-        # unix_fds = header_fields.get(HeaderField.UNIX_FDS.name)
+        # unix_fds = header_fields.get(HeaderField.UNIX_FDS.name, 0)
 
         body = []
 

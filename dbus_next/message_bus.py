@@ -52,8 +52,6 @@ class BaseMessageBus:
         self._disconnected = False
 
         self._method_return_handlers = {}
-        # buffer messages until connect
-        self._buffered_messages = []
         self._serial = 0
         self._user_message_handlers = []
         # the key is the name and the value is the unique name of the owner.

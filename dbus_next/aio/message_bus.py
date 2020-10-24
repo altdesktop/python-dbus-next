@@ -1,6 +1,5 @@
 from ..message_bus import BaseMessageBus
 from .._private.unmarshaller import Unmarshaller
-from .._private.constants import MESSAGE_HEADER_LEN
 from ..message import Message
 from ..constants import BusType, NameFlag, RequestNameReply, ReleaseNameReply, MessageType, MessageFlag
 from ..service import ServiceInterface
@@ -12,9 +11,62 @@ from ..auth import Authenticator, AuthExternal
 import array
 import logging
 import asyncio
+from asyncio import Queue
 import socket
 import traceback
+from copy import copy
 from typing import Optional
+
+
+class _MessageWriter:
+    def __init__(self, bus):
+        self.messages = Queue()
+        self.negotiate_unix_fd = bus._negotiate_unix_fd
+        self.sock = bus._sock
+        self.loop = bus._loop
+        self.buf = None
+        self.fd = bus._fd
+        self.offset = 0
+        self.unix_fds = None
+
+    def write_callback(self):
+        try:
+            while True:
+                if self.buf is None:
+                    if self.messages.qsize() == 0:
+                        # nothing more to write
+                        self.loop.remove_writer(self.fd)
+                        return
+                    buf, unix_fds = self.messages.get_nowait()
+                    self.unix_fds = unix_fds
+                    self.buf = memoryview(buf)
+                    self.offset = 0
+
+                if self.unix_fds and self.negotiate_unix_fd:
+                    ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                array.array("i", self.unix_fds))]
+                    self.offset += self.sock.sendmsg([self.buf[self.offset:]], ancdata)
+                    self.unix_fds = None
+                else:
+                    self.offset += self.sock.send(self.buf[self.offset:])
+
+                if self.offset >= len(self.buf):
+                    # finished writing
+                    self.buf = None
+                else:
+                    # wait for writable
+                    return
+        except Exception as e:
+            self.loop.remove_writer(self.fd)
+            self._finalize(e)
+
+    def buffer_message(self, msg: Message):
+        self.messages.put_nowait((msg._marshall(), copy(msg.unix_fds)))
+
+    def schedule_write(self, msg: Message = None):
+        if msg is not None:
+            self.buffer_message(msg)
+        self.loop.add_writer(self.fd, self.write_callback)
 
 
 class MessageBus(BaseMessageBus):
@@ -49,6 +101,9 @@ class MessageBus(BaseMessageBus):
         self._negotiate_unix_fd = negotiate_unix_fd
         self._loop = asyncio.get_event_loop()
         self._unmarshaller = self._create_unmarshaller()
+
+        self._writer = _MessageWriter(self)
+
         if auth is None:
             self._auth = AuthExternal()
         else:
@@ -81,9 +136,7 @@ class MessageBus(BaseMessageBus):
                 future.set_exception(err)
                 return
             self.unique_name = reply.body[0]
-            for m in self._buffered_messages:
-                self.send(m)
-            self._buffered_messages.clear()
+            self._writer.schedule_write()
             future.set_result(self)
 
         hello_msg = Message(destination='org.freedesktop.DBus',
@@ -228,51 +281,11 @@ class MessageBus(BaseMessageBus):
 
         return future.result()
 
-    def _sock_sendmsg(self, sock, *buffers, ancdata=None, flags=0):
-        fd = sock.fileno()
-        fut = asyncio.futures.Future(loop=self._loop)
-
-        def __sock_sendmsg(registered=False):
-            if registered:
-                self._loop.remove_writer(fd)
-
-            if fut.cancelled():
-                return
-
-            try:
-                size = sock.sendmsg(buffers, ancdata or [], flags)
-            except (BlockingIOError, InterruptedError):
-                self._loop.add_writer(fd, __sock_sendmsg, True)
-            except Exception as exc:
-                fut.set_exception(exc)
-            else:
-                fut.set_result(size)
-
-        if self._loop._debug and sock.gettimeout() != 0:
-            raise ValueError('Socket %r must be non-blocking' % sock)
-
-        __sock_sendmsg()
-        return fut
-
     def send(self, msg: Message):
         if not msg.serial:
             msg.serial = self.next_serial()
 
-        if not self.unique_name:
-            # not connected yet, buffer the message
-            self._buffered_messages.append(msg)
-            return
-
-        buf = msg._marshall()
-
-        async def _send():
-            ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", msg.unix_fds))] \
-                if msg.unix_fds else None
-
-            await self._sock_sendmsg(self._sock, buf[:MESSAGE_HEADER_LEN], ancdata=ancdata)
-            await self._loop.sock_sendall(self._sock, buf[MESSAGE_HEADER_LEN:])
-
-        asyncio.ensure_future(_send())
+        self._writer.schedule_write(msg)
 
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
@@ -336,3 +349,6 @@ class MessageBus(BaseMessageBus):
         if self._negotiate_unix_fd:
             sock = self._sock
         return Unmarshaller(self._stream, sock)
+
+    def _finalize(self, err=None):
+        super()._finalize(err)
