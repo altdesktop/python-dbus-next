@@ -9,11 +9,9 @@ from .. import introspection as intr
 from ..auth import Authenticator, AuthExternal
 
 import array
-import logging
 import asyncio
 from asyncio import Queue
 import socket
-import traceback
 from copy import copy
 from typing import Optional
 
@@ -22,6 +20,7 @@ class _MessageWriter:
     def __init__(self, bus):
         self.messages = Queue()
         self.negotiate_unix_fd = bus._negotiate_unix_fd
+        self.bus = bus
         self.sock = bus._sock
         self.loop = bus._loop
         self.buf = None
@@ -66,7 +65,9 @@ class _MessageWriter:
     def schedule_write(self, msg: Message = None):
         if msg is not None:
             self.buffer_message(msg)
-        self.loop.add_writer(self.fd, self.write_callback)
+        if self.bus.unique_name:
+            # don't run the writer until the bus is ready to send messages
+            self.loop.add_writer(self.fd, self.write_callback)
 
 
 class MessageBus(BaseMessageBus):
@@ -129,15 +130,16 @@ class MessageBus(BaseMessageBus):
         self._loop.add_reader(self._fd, self._message_reader)
 
         def on_hello(reply, err):
-            if err:
-                logging.error(f'sending "Hello" message failed: {err}\n{traceback.print_exc()}')
+            try:
+                if err:
+                    raise err
+                self.unique_name = reply.body[0]
+                self._writer.schedule_write()
+                future.set_result(self)
+            except Exception as e:
+                future.set_exception(e)
                 self.disconnect()
                 self._finalize(err)
-                future.set_exception(err)
-                return
-            self.unique_name = reply.body[0]
-            self._writer.schedule_write()
-            future.set_result(self)
 
         hello_msg = Message(destination='org.freedesktop.DBus',
                             path='/org/freedesktop/DBus',
