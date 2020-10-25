@@ -2,22 +2,40 @@
 from dbus_next.service import ServiceInterface, method
 from dbus_next.signature import SignatureTree, Variant
 from dbus_next.aio import MessageBus
-from dbus_next import Message, MessageFlag
-import socket
+from dbus_next import Message, MessageFlag, MessageType
 import os
 
 import pytest
 
 
+def open_file():
+    return os.open(os.devnull, os.O_RDONLY)
+
+
 class ExampleInterface(ServiceInterface):
     def __init__(self, name):
         super().__init__(name)
-        self.fd = 0
+        self.fds = []
+        self.files = []
 
     @method()
-    async def echofd(self) -> 'h':
-        f = socket.socket()
-        return f
+    async def ReturnsFd(self) -> 'h':
+        fd = open_file()
+        self.fds.append(fd)
+        return fd
+
+    @method()
+    async def AcceptsFd(self, fd: 'h'):
+        assert fd != 0
+        self.fds.append(fd)
+
+    def get_last_fd(self):
+        return self.fds[-1]
+
+    def cleanup(self):
+        for fd in self.fds:
+            os.close(fd)
+        self.fds.clear()
 
 
 def assert_fds_equal(fd1, fd2):
@@ -34,8 +52,7 @@ async def test_sending_file_descriptor_low_level():
     bus1 = await MessageBus(negotiate_unix_fd=True).connect()
     bus2 = await MessageBus(negotiate_unix_fd=True).connect()
 
-    f = open(os.devnull, 'r')
-    fd_before = f.fileno()
+    fd_before = open_file()
     fd_after = None
 
     msg = Message(destination=bus1.unique_name,
@@ -75,14 +92,15 @@ async def test_sending_file_descriptor_low_level():
 
 
 @pytest.mark.asyncio
-async def test_sending_file_descriptor():
+async def test_high_level_service_fd_passing():
     bus1 = await MessageBus(negotiate_unix_fd=True).connect()
     bus2 = await MessageBus(negotiate_unix_fd=True).connect()
+    print(bus2.unique_name)
 
     interface = ExampleInterface('test.interface')
     export_path = '/test/path'
 
-    async def call(member, signature='', body=[], flags=MessageFlag.NONE):
+    async def call(member, signature='', body=[], unix_fds=[], flags=MessageFlag.NONE):
         return await bus2.call(
             Message(destination=bus1.unique_name,
                     path=export_path,
@@ -90,17 +108,35 @@ async def test_sending_file_descriptor():
                     member=member,
                     signature=signature,
                     body=body,
+                    unix_fds=unix_fds,
                     flags=flags))
 
     bus1.export(export_path, interface)
 
-    reply = await call('echofd')
+    # test that an fd can be returned by the service
+    reply = await call('ReturnsFd')
+    assert reply.message_type == MessageType.METHOD_RETURN, reply.body
+    assert reply.signature == 'h'
+    assert len(reply.unix_fds) == 1
+    assert_fds_equal(interface.get_last_fd(), reply.unix_fds[0])
+    interface.cleanup()
+    os.close(reply.unix_fds[0])
 
-    sock = socket.fromfd(reply.unix_fds[0], family=-1, type=-1)
-    assert sock
+    # test that an fd can be sent to the service
+    fd = open_file()
+    reply = await call('AcceptsFd', signature='h', body=[0], unix_fds=[fd])
+    assert reply.message_type == MessageType.METHOD_RETURN, reply.body
+    assert_fds_equal(interface.get_last_fd(), fd)
+
+    interface.cleanup()
+    os.close(fd)
+
+    for bus in [bus1, bus2]:
+        bus.disconnect()
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip
 async def test_sending_file_descriptor_with_proxy():
     name = 'dbus.next.test.service'
     path = '/test/path'
@@ -115,9 +151,7 @@ async def test_sending_file_descriptor_with_proxy():
 
     proxy = bus.get_proxy_object(name, path, intr)
     proxy_interface = proxy.get_interface(interface_name)
-    reply = await proxy_interface.call_echofd()
-    sock = socket.fromfd(reply, family=-1, type=-1)
-    assert sock
+    await proxy_interface.call_returns_fd()
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-from dbus_next import SignatureTree, SignatureBodyMismatchError
+from dbus_next import SignatureTree, SignatureBodyMismatchError, Variant
 
 import pytest
 
@@ -147,6 +147,36 @@ def test_dict_of_structs():
     assert len(struct_child.children) == 2
     for i in range(0, 2):
         assert_simple_type('s', struct_child.children[i])
+
+
+def test_contains_type():
+    tree = SignatureTree('h')
+    assert tree._contains_type([0], 'h')
+    assert not tree._contains_type([0], 'u')
+
+    tree = SignatureTree('ah')
+    assert tree._contains_type([[0]], 'h')
+    assert tree._contains_type([[0]], 'a')
+    assert not tree._contains_type([[0]], 'u')
+
+    tree = SignatureTree('av')
+    body = [[Variant('u', 0), Variant('i', 0), Variant('x', 0), Variant('v', Variant('s', 'hi'))]]
+    assert tree._contains_type(body, 'u')
+    assert tree._contains_type(body, 'x')
+    assert tree._contains_type(body, 'v')
+    assert tree._contains_type(body, 's')
+    assert not tree._contains_type(body, 'o')
+
+    tree = SignatureTree('a{sv}')
+    body = {
+        'foo': Variant('h', 0),
+        'bar': Variant('i', 0),
+        'bat': Variant('x', 0),
+        'baz': Variant('v', Variant('o', '/hi'))
+    }
+    for expected in 'hixvso':
+        assert tree._contains_type([body], expected)
+    assert not tree._contains_type([body], 'b')
 
 
 def test_invalid_variants():

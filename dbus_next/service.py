@@ -7,7 +7,7 @@ from .message import _replace_fds
 from functools import wraps
 import inspect
 from typing import no_type_check_decorator, Dict, List, Any
-from os import dup
+import copy
 
 # TODO: if the user uses `from __future__ import annotations` in their code,
 # the annotation inspection will not work because of PEP 563. We will get
@@ -432,8 +432,25 @@ class ServiceInterface:
         return interface.__signals
 
     @staticmethod
+    def _msg_body_to_args(msg):
+        if msg.signature_tree._contains_type(msg.body, 'h'):
+            # XXX: This deep copy could be expensive if messages are very
+            # large. We could optimize this by only copying what we change
+            # here.
+            def _replace(fd_idx):
+                return msg.unix_fds[fd_idx] if len(msg.unix_fds) > fd_idx else None
+
+            args = copy.deepcopy(msg.body)
+            _replace_fds(args, msg.signature_tree.types, _replace)
+            return args
+        else:
+            return msg.body
+
+    @staticmethod
     def _fn_result_to_body(result, signature_tree):
-        # TODO: find better way of passing results here instead of list
+        '''The high level interfaces may return single values which may be
+        wrapped in a list to be a message body. Also they may return fds
+        directly for type 'h' which need to be put into an external list.'''
         out_len = len(signature_tree.types)
         if result is None:
             result = []
@@ -453,14 +470,12 @@ class ServiceInterface:
         body = list(result)
         fds = []
 
-        def _replace(obj):
-            if hasattr(obj, "fileno"):
-                obj = dup(obj.fileno())
-            fds.append(obj)
+        if signature_tree._contains_type(body, 'h'):
 
-            return len(fds) - 1
+            def _replace(fd):
+                fds.append(fd)
+                return len(fds) - 1
 
-        if any(sig in signature_tree.signature for sig in 'hv'):
             _replace_fds(body, signature_tree.types, _replace)
 
         return body, fds

@@ -57,7 +57,7 @@ class _MessageWriter:
                     return
         except Exception as e:
             self.loop.remove_writer(self.fd)
-            self._finalize(e)
+            self.bus._finalize(e)
 
     def buffer_message(self, msg: Message):
         self.messages.put_nowait((msg._marshall(), copy(msg.unix_fds)))
@@ -305,7 +305,8 @@ class MessageBus(BaseMessageBus):
                                                                     method.out_signature_tree)
                     send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
 
-            fut = asyncio.ensure_future(method.fn(interface, *msg.body))
+            args = ServiceInterface._msg_body_to_args(msg)
+            fut = asyncio.ensure_future(method.fn(interface, *args))
             fut.add_done_callback(done)
 
         return handler

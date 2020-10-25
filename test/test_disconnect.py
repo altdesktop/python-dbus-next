@@ -19,7 +19,7 @@ async def test_bus_disconnect_before_reply(event_loop):
 
     event_loop.call_soon(bus.disconnect)
 
-    with pytest.raises(EOFError):
+    with pytest.raises((EOFError, BrokenPipeError)):
         await ping
 
     assert bus._disconnected

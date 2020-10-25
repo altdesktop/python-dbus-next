@@ -10,10 +10,10 @@ from . import introspection as intr
 from contextlib import suppress
 
 import inspect
-import traceback
 import socket
 import logging
 import xml.etree.ElementTree as ET
+import traceback
 
 from typing import Type, Callable, Optional, Union
 
@@ -692,7 +692,8 @@ class BaseMessageBus:
     @classmethod
     def _make_method_handler(cls, interface, method):
         def handler(msg, send_reply):
-            result = method.fn(interface, *msg.body)
+            args = ServiceInterface._msg_body_to_args(msg)
+            result = method.fn(interface, *args)
             body, fds = ServiceInterface._fn_result_to_body(
                 result, signature_tree=method.out_signature_tree)
             send_reply(Message.new_method_return(msg, method.out_signature, body, fds))

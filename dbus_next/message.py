@@ -243,6 +243,10 @@ class Message:
 
 
 def _replace_fds(body_obj, children, replace_fn):
+    '''Replace any type 'h' with the value returned by replace_fn() given the
+    value of the fd field. This is used by the high level interfaces which
+    allow type 'h' to be the fd directly instead of an index in an external
+    array such as in the spec.'''
     for index, st in enumerate(children):
         if not any(sig in st.signature for sig in 'hv'):
             continue

@@ -338,6 +338,40 @@ class SignatureTree:
         else:
             return super().__eq__(other)
 
+    def _contains_type(self, body, token):
+        queue = []
+        contains_variants = False
+        for st in self.types:
+            queue.append(st)
+
+        while True:
+            if not queue:
+                break
+            st = queue.pop()
+            if st.token == token:
+                return True
+            elif st.token == 'v':
+                contains_variants = True
+            queue.extend(st.children)
+
+        if not contains_variants:
+            return False
+
+        for member in body:
+            queue.append(member)
+
+        while True:
+            if not queue:
+                return False
+            member = queue.pop()
+            if type(member) is Variant and \
+                    SignatureTree._get(member.signature)._contains_type([member.value], token):
+                return True
+            elif type(member) is list:
+                queue.extend(member)
+            elif type(member) is dict:
+                queue.extend(member.values())
+
     def verify(self, body: List[Any]):
         """Verifies that the give body matches this signature tree
 
@@ -392,7 +426,7 @@ class Variant:
             signature_type = signature
             signature_str = signature.signature
         elif type(signature) is str:
-            signature_tree = SignatureTree(signature)
+            signature_tree = SignatureTree._get(signature)
         else:
             raise TypeError('signature must be a SignatureTree, SignatureType, or a string')
 
