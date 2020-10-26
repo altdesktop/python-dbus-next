@@ -338,40 +338,6 @@ class SignatureTree:
         else:
             return super().__eq__(other)
 
-    def _contains_type(self, body, token):
-        queue = []
-        contains_variants = False
-        for st in self.types:
-            queue.append(st)
-
-        while True:
-            if not queue:
-                break
-            st = queue.pop()
-            if st.token == token:
-                return True
-            elif st.token == 'v':
-                contains_variants = True
-            queue.extend(st.children)
-
-        if not contains_variants:
-            return False
-
-        for member in body:
-            queue.append(member)
-
-        while True:
-            if not queue:
-                return False
-            member = queue.pop()
-            if type(member) is Variant and \
-                    SignatureTree._get(member.signature)._contains_type([member.value], token):
-                return True
-            elif type(member) is list:
-                queue.extend(member)
-            elif type(member) is dict:
-                queue.extend(member.values())
-
     def verify(self, body: List[Any]):
         """Verifies that the give body matches this signature tree
 
@@ -450,3 +416,41 @@ class Variant:
 
     def __repr__(self):
         return "<dbus_next.signature.Variant ('%s', %s)>" % (self.type.signature, self.value)
+
+
+def _contains_type(signature, body, token):
+    if type(signature) is str:
+        signature = SignatureTree._get(signature)
+
+    queue = []
+    contains_variants = False
+    for st in signature.types:
+        queue.append(st)
+
+    while True:
+        if not queue:
+            break
+        st = queue.pop()
+        if st.token == token:
+            return True
+        elif st.token == 'v':
+            contains_variants = True
+        queue.extend(st.children)
+
+    if not contains_variants:
+        return False
+
+    for member in body:
+        queue.append(member)
+
+    while True:
+        if not queue:
+            return False
+        member = queue.pop()
+        if type(member) is Variant and \
+                _contains_type(member.signature, [member.value], token):
+            return True
+        elif type(member) is list:
+            queue.extend(member)
+        elif type(member) is dict:
+            queue.extend(member.values())

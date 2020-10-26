@@ -1,5 +1,5 @@
 from .constants import PropertyAccess
-from .signature import SignatureTree, SignatureBodyMismatchError, Variant
+from .signature import SignatureTree, SignatureBodyMismatchError, Variant, _contains_type
 from . import introspection as intr
 from .errors import SignalDisabledError
 from .message import _replace_fds
@@ -433,7 +433,7 @@ class ServiceInterface:
 
     @staticmethod
     def _msg_body_to_args(msg):
-        if msg.signature_tree._contains_type(msg.body, 'h'):
+        if _contains_type(msg.signature_tree, msg.body, 'h'):
             # XXX: This deep copy could be expensive if messages are very
             # large. We could optimize this by only copying what we change
             # here.
@@ -470,11 +470,14 @@ class ServiceInterface:
         body = list(result)
         fds = []
 
-        if signature_tree._contains_type(body, 'h'):
+        if _contains_type(signature_tree, body, 'h'):
 
             def _replace(fd):
-                fds.append(fd)
-                return len(fds) - 1
+                try:
+                    return fds.index(fd)
+                except ValueError:
+                    fds.append(fd)
+                    return len(fds) - 1
 
             _replace_fds(body, signature_tree.types, _replace)
 

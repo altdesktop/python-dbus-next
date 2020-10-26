@@ -1,8 +1,8 @@
 """This tests the ability to send and receive file descriptors in dbus messages"""
-from dbus_next.service import ServiceInterface, method
+from dbus_next.service import ServiceInterface, method, signal, dbus_property
 from dbus_next.signature import SignatureTree, Variant
 from dbus_next.aio import MessageBus
-from dbus_next import Message, MessageFlag, MessageType
+from dbus_next import Message, MessageType
 import os
 
 import pytest
@@ -16,16 +16,15 @@ class ExampleInterface(ServiceInterface):
     def __init__(self, name):
         super().__init__(name)
         self.fds = []
-        self.files = []
 
     @method()
-    async def ReturnsFd(self) -> 'h':
+    def ReturnsFd(self) -> 'h':
         fd = open_file()
         self.fds.append(fd)
         return fd
 
     @method()
-    async def AcceptsFd(self, fd: 'h'):
+    def AcceptsFd(self, fd: 'h'):
         assert fd != 0
         self.fds.append(fd)
 
@@ -37,8 +36,29 @@ class ExampleInterface(ServiceInterface):
             os.close(fd)
         self.fds.clear()
 
+    @signal()
+    def SignalFd(self) -> 'h':
+        fd = open_file()
+        self.fds.append(fd)
+        return fd
+
+    @dbus_property()
+    def PropFd(self) -> 'h':
+        if not self.fds:
+            fd = open_file()
+            self.fds.append(fd)
+        return self.fds[-1]
+
+    @PropFd.setter
+    def PropFd(self, fd: 'h'):
+        assert fd
+        self.fds.append(fd)
+
 
 def assert_fds_equal(fd1, fd2):
+    assert fd1
+    assert fd2
+
     stat1 = os.fstat(fd1)
     stat2 = os.fstat(fd2)
 
@@ -92,24 +112,23 @@ async def test_sending_file_descriptor_low_level():
 
 
 @pytest.mark.asyncio
-async def test_high_level_service_fd_passing():
+async def test_high_level_service_fd_passing(event_loop):
     bus1 = await MessageBus(negotiate_unix_fd=True).connect()
     bus2 = await MessageBus(negotiate_unix_fd=True).connect()
-    print(bus2.unique_name)
 
-    interface = ExampleInterface('test.interface')
+    interface_name = 'test.interface'
+    interface = ExampleInterface(interface_name)
     export_path = '/test/path'
 
-    async def call(member, signature='', body=[], unix_fds=[], flags=MessageFlag.NONE):
+    async def call(member, signature='', body=[], unix_fds=[], iface=interface.name):
         return await bus2.call(
             Message(destination=bus1.unique_name,
                     path=export_path,
-                    interface=interface.name,
+                    interface=iface,
                     member=member,
                     signature=signature,
                     body=body,
-                    unix_fds=unix_fds,
-                    flags=flags))
+                    unix_fds=unix_fds))
 
     bus1.export(export_path, interface)
 
@@ -130,6 +149,63 @@ async def test_high_level_service_fd_passing():
 
     interface.cleanup()
     os.close(fd)
+
+    # signals
+    fut = event_loop.create_future()
+
+    def fd_listener(msg):
+        if msg.sender == bus1.unique_name and msg.message_type == MessageType.SIGNAL:
+            fut.set_result(msg)
+
+    reply = await bus2.call(
+        Message(destination='org.freedesktop.DBus',
+                path='/org/freedesktop/DBus',
+                member='AddMatch',
+                signature='s',
+                body=[f"sender='{bus1.unique_name}'"]))
+    assert reply.message_type == MessageType.METHOD_RETURN
+
+    bus2.add_message_handler(fd_listener)
+    interface.SignalFd()
+    reply = await fut
+
+    assert len(reply.unix_fds) == 1
+    assert reply.body == [0]
+    assert_fds_equal(reply.unix_fds[0], interface.get_last_fd())
+
+    interface.cleanup()
+    os.close(reply.unix_fds[0])
+
+    # properties
+    reply = await call('Get',
+                       'ss', [interface_name, 'PropFd'],
+                       iface='org.freedesktop.DBus.Properties')
+    assert reply.message_type == MessageType.METHOD_RETURN, reply.body
+    assert reply.body[0].signature == 'h'
+    assert reply.body[0].value == 0
+    assert len(reply.unix_fds) == 1
+    assert_fds_equal(interface.get_last_fd(), reply.unix_fds[0])
+    interface.cleanup()
+    os.close(reply.unix_fds[0])
+
+    fd = open_file()
+    reply = await call('Set',
+                       'ssv', [interface_name, 'PropFd', Variant('h', 0)],
+                       iface='org.freedesktop.DBus.Properties',
+                       unix_fds=[fd])
+    assert reply.message_type == MessageType.METHOD_RETURN, reply.body
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
+
+    reply = await call('GetAll', 's', [interface_name], iface='org.freedesktop.DBus.Properties')
+    assert reply.message_type == MessageType.METHOD_RETURN, reply.body
+    assert reply.body[0]['PropFd'].signature == 'h'
+    assert reply.body[0]['PropFd'].value == 0
+    assert len(reply.unix_fds) == 1
+    assert_fds_equal(interface.get_last_fd(), reply.unix_fds[0])
+    interface.cleanup()
+    os.close(reply.unix_fds[0])
 
     for bus in [bus1, bus2]:
         bus.disconnect()
