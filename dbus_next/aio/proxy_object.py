@@ -1,9 +1,10 @@
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
-from ..message import Message, MessageFlag, _replace_fds
+from ..message import Message, MessageFlag
 from ..signature import Variant
 from ..errors import DBusError
 from ..constants import ErrorType
+from .._private.util import replace_idx_with_fds, replace_fds_with_idx
 from .. import introspection as intr
 import xml.etree.ElementTree as ET
 
@@ -73,14 +74,17 @@ class ProxyInterface(BaseProxyInterface):
     """
     def _add_method(self, intr_method):
         async def method_fn(*args, flags=MessageFlag.NONE):
+            input_body, unix_fds = replace_fds_with_idx(intr_method.in_signature, list(args))
+
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
                         path=self.path,
                         interface=self.introspection.name,
                         member=intr_method.name,
                         signature=intr_method.in_signature,
-                        body=list(args),
-                        flags=flags))
+                        body=input_body,
+                        flags=flags,
+                        unix_fds=unix_fds))
 
             if flags & MessageFlag.NO_REPLY_EXPECTED:
                 return None
@@ -89,18 +93,14 @@ class ProxyInterface(BaseProxyInterface):
 
             out_len = len(intr_method.out_args)
 
-            def _replace(obj):
-                return msg.unix_fds[obj]
-
-            if any(sig in msg.signature for sig in 'hv'):
-                _replace_fds(msg.body, msg.signature_tree.types, _replace)
+            body = replace_idx_with_fds(msg.signature_tree, msg.body, msg.unix_fds)
 
             if not out_len:
                 return None
             elif out_len == 1:
-                return msg.body[0]
+                return body[0]
             else:
-                return msg.body
+                return body
 
         method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
         setattr(self, method_name, method_fn)
@@ -121,17 +121,23 @@ class ProxyInterface(BaseProxyInterface):
                 raise DBusError(ErrorType.CLIENT_ERROR,
                                 f'property returned unexpected signature "{variant.signature}"',
                                 msg)
-            return variant.value
+
+            return replace_idx_with_fds('v', msg.body, msg.unix_fds)[0].value
 
         async def property_setter(val):
             variant = Variant(intr_property.signature, val)
+
+            body, unix_fds = replace_fds_with_idx(
+                'ssv', [self.introspection.name, intr_property.name, variant])
+
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
                         path=self.path,
                         interface='org.freedesktop.DBus.Properties',
                         member='Set',
                         signature='ssv',
-                        body=[self.introspection.name, intr_property.name, variant]))
+                        body=body,
+                        unix_fds=unix_fds))
 
             BaseProxyInterface._check_method_return(msg)
 

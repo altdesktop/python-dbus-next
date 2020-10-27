@@ -1,5 +1,5 @@
 from dbus_next import SignatureTree, SignatureBodyMismatchError, Variant
-from dbus_next.signature import _contains_type
+from dbus_next._private.util import signature_contains_type
 
 import pytest
 
@@ -152,21 +152,21 @@ def test_dict_of_structs():
 
 def test_contains_type():
     tree = SignatureTree('h')
-    assert _contains_type(tree, [0], 'h')
-    assert not _contains_type(tree, [0], 'u')
+    assert signature_contains_type(tree, [0], 'h')
+    assert not signature_contains_type(tree, [0], 'u')
 
     tree = SignatureTree('ah')
-    assert _contains_type(tree, [[0]], 'h')
-    assert _contains_type(tree, [[0]], 'a')
-    assert not _contains_type(tree, [[0]], 'u')
+    assert signature_contains_type(tree, [[0]], 'h')
+    assert signature_contains_type(tree, [[0]], 'a')
+    assert not signature_contains_type(tree, [[0]], 'u')
 
     tree = SignatureTree('av')
     body = [[Variant('u', 0), Variant('i', 0), Variant('x', 0), Variant('v', Variant('s', 'hi'))]]
-    assert _contains_type(tree, body, 'u')
-    assert _contains_type(tree, body, 'x')
-    assert _contains_type(tree, body, 'v')
-    assert _contains_type(tree, body, 's')
-    assert not _contains_type(tree, body, 'o')
+    assert signature_contains_type(tree, body, 'u')
+    assert signature_contains_type(tree, body, 'x')
+    assert signature_contains_type(tree, body, 'v')
+    assert signature_contains_type(tree, body, 's')
+    assert not signature_contains_type(tree, body, 'o')
 
     tree = SignatureTree('a{sv}')
     body = {
@@ -176,8 +176,8 @@ def test_contains_type():
         'baz': Variant('v', Variant('o', '/hi'))
     }
     for expected in 'hixvso':
-        assert _contains_type(tree, [body], expected)
-    assert not _contains_type(tree, [body], 'b')
+        assert signature_contains_type(tree, [body], expected)
+    assert not signature_contains_type(tree, [body], 'b')
 
 
 def test_invalid_variants():

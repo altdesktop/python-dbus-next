@@ -1,8 +1,8 @@
 from .constants import PropertyAccess
-from .signature import SignatureTree, SignatureBodyMismatchError, Variant, _contains_type
+from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
 from .errors import SignalDisabledError
-from .message import _replace_fds
+from ._private.util import signature_contains_type, replace_fds_with_idx, replace_idx_with_fds
 
 from functools import wraps
 import inspect
@@ -433,16 +433,11 @@ class ServiceInterface:
 
     @staticmethod
     def _msg_body_to_args(msg):
-        if _contains_type(msg.signature_tree, msg.body, 'h'):
+        if signature_contains_type(msg.signature_tree, msg.body, 'h'):
             # XXX: This deep copy could be expensive if messages are very
             # large. We could optimize this by only copying what we change
             # here.
-            def _replace(fd_idx):
-                return msg.unix_fds[fd_idx] if len(msg.unix_fds) > fd_idx else None
-
-            args = copy.deepcopy(msg.body)
-            _replace_fds(args, msg.signature_tree.types, _replace)
-            return args
+            return replace_idx_with_fds(msg.signature_tree, copy.deepcopy(msg.body), msg.unix_fds)
         else:
             return msg.body
 
@@ -467,21 +462,7 @@ class ServiceInterface:
                 "Signature and function return mismatch, expected %s arguments but got %s",
                 (len(signature_tree.types), len(result)))
 
-        body = list(result)
-        fds = []
-
-        if _contains_type(signature_tree, body, 'h'):
-
-            def _replace(fd):
-                try:
-                    return fds.index(fd)
-                except ValueError:
-                    fds.append(fd)
-                    return len(fds) - 1
-
-            _replace_fds(body, signature_tree.types, _replace)
-
-        return body, fds
+        return replace_fds_with_idx(signature_tree, result)
 
     @staticmethod
     def _handle_signal(interface, signal, result):

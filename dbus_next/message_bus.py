@@ -1,10 +1,11 @@
 from ._private.address import get_bus_address, parse_address
-from .message import Message, _replace_fds
+from ._private.util import replace_fds_with_idx, replace_idx_with_fds
+from .message import Message
 from .constants import BusType, MessageFlag, MessageType, ErrorType, NameFlag, RequestNameReply, ReleaseNameReply
 from .service import ServiceInterface
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from .errors import DBusError, InvalidAddressError
-from .signature import SignatureTree, Variant, _contains_type
+from .signature import Variant
 from .proxy_object import BaseProxyObject
 from . import introspection as intr
 from contextlib import suppress
@@ -449,7 +450,13 @@ class BaseMessageBus:
 
         return False
 
-    def _interface_signal_notify(self, interface, interface_name, member, signature, body, fds=[]):
+    def _interface_signal_notify(self,
+                                 interface,
+                                 interface_name,
+                                 member,
+                                 signature,
+                                 body,
+                                 unix_fds=[]):
         path = None
         for p, ifaces in self._path_exports.items():
             for i in ifaces:
@@ -465,7 +472,7 @@ class BaseMessageBus:
                                member=member,
                                signature=signature,
                                body=body,
-                               fds=fds))
+                               unix_fds=unix_fds))
 
     def _introspect_export_path(self, path):
         assert_object_path_valid(path)
@@ -821,19 +828,6 @@ class BaseMessageBus:
         interface = match[0]
         properties = ServiceInterface._get_properties(interface)
 
-        # Properties are allowed to return unix fds for type 'h' directly.
-        # Collect them in an array to send with the message and replace with
-        # the index of the array in the message body
-        # TODO: refactor to util
-        unix_fds = []
-
-        def _replace_fd_with_idx(fd):
-            try:
-                return unix_fds.index(fd)
-            except ValueError:
-                unix_fds.append(fd)
-                return len(unix_fds) - 1
-
         if msg.member == 'Get' or msg.member == 'Set':
             prop_name = msg.body[1]
             match = [prop for prop in properties if prop.name == prop_name and not prop.disabled]
@@ -849,16 +843,12 @@ class BaseMessageBus:
                                     'the property does not have read access')
                 prop_value = getattr(interface, prop.prop_getter.__name__)
 
-                # TODO refactor
-                prop_body = [prop_value]
-                if _contains_type(prop.signature, prop_body, 'h'):
-                    _replace_fds(prop_body,
-                                 SignatureTree._get(prop.signature).types, _replace_fd_with_idx)
+                body, unix_fds = replace_fds_with_idx(prop.signature, [prop_value])
 
                 send_reply(
                     Message.new_method_return(msg,
-                                              'v', [Variant(prop.signature, prop_body[0])],
-                                              fds=unix_fds))
+                                              'v', [Variant(prop.signature, body[0])],
+                                              unix_fds=unix_fds))
             elif msg.member == 'Set':
                 if not prop.access.writable():
                     raise DBusError(ErrorType.PROPERTY_READ_ONLY, 'the property is readonly')
@@ -867,29 +857,13 @@ class BaseMessageBus:
                     raise DBusError(ErrorType.INVALID_SIGNATURE,
                                     f'wrong signature for property. expected "{prop.signature}"')
                 assert prop.prop_setter
-
-                # TODO refactor
-                def _replace_idx_with_fd(idx):
-                    try:
-                        return msg.unix_fds[idx]
-                    except ValueError:
-                        return None
-
-                body = [value]
-                if _contains_type('v', body, 'h'):
-                    _replace_fds(body, SignatureTree._get('v').types, _replace_idx_with_fd)
-
-                setattr(interface, prop.prop_setter.__name__, body[0].value)
+                body = replace_idx_with_fds(value.signature, [value.value], msg.unix_fds)
+                setattr(interface, prop.prop_setter.__name__, body[0])
                 send_reply(Message.new_method_return(msg))
 
         elif msg.member == 'GetAll':
-            body = [self._get_all_properties(interface)]
-
-            # TODO refactor
-            if _contains_type('a{sv}', body, 'h'):
-                _replace_fds(body, SignatureTree._get('a{sv}').types, _replace_fd_with_idx)
-
-            send_reply(Message.new_method_return(msg, 'a{sv}', body, fds=unix_fds))
+            body, unix_fds = replace_fds_with_idx('a{sv}', [self._get_all_properties(interface)])
+            send_reply(Message.new_method_return(msg, 'a{sv}', body, unix_fds=unix_fds))
 
         else:
             assert False

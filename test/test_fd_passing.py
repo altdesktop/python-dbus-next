@@ -212,13 +212,13 @@ async def test_high_level_service_fd_passing(event_loop):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip
-async def test_sending_file_descriptor_with_proxy():
+async def test_sending_file_descriptor_with_proxy(event_loop):
     name = 'dbus.next.test.service'
     path = '/test/path'
     interface_name = 'test.interface'
 
     bus = await MessageBus(negotiate_unix_fd=True).connect()
+
     interface = ExampleInterface(interface_name)
     bus.export(path, interface)
     await bus.request_name(name)
@@ -227,7 +227,42 @@ async def test_sending_file_descriptor_with_proxy():
 
     proxy = bus.get_proxy_object(name, path, intr)
     proxy_interface = proxy.get_interface(interface_name)
-    await proxy_interface.call_returns_fd()
+
+    # test fds are replaced correctly in all high level interfaces
+    fd = await proxy_interface.call_returns_fd()
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
+
+    fd = open_file()
+    await proxy_interface.call_accepts_fd(fd)
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
+
+    fd = await proxy_interface.get_prop_fd()
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
+
+    fd = open_file()
+    await proxy_interface.set_prop_fd(fd)
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
+
+    fut = event_loop.create_future()
+
+    def on_signal_fd(fd):
+        fut.set_result(fd)
+        proxy_interface.off_signal_fd(on_signal_fd)
+
+    proxy_interface.on_signal_fd(on_signal_fd)
+    interface.SignalFd()
+    fd = await fut
+    assert_fds_equal(interface.get_last_fd(), fd)
+    interface.cleanup()
+    os.close(fd)
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ from .message import Message
 from .constants import MessageType, ErrorType
 from . import introspection as intr
 from .errors import DBusError, InterfaceNotFoundError
+from ._private.util import replace_idx_with_fds
 
 from typing import Type, Union, List
 import logging
@@ -94,8 +95,9 @@ class BaseProxyInterface:
             )
             return
 
+        body = replace_idx_with_fds(msg.signature, msg.body, msg.unix_fds)
         for handler in self._signal_handlers[msg.member]:
-            handler(*msg.body)
+            handler(*body)
 
     def _add_signal(self, intr_signal, interface):
         def on_signal_fn(fn):

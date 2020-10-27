@@ -60,7 +60,8 @@ class _MessageWriter:
             self.bus._finalize(e)
 
     def buffer_message(self, msg: Message):
-        self.messages.put_nowait((msg._marshall(), copy(msg.unix_fds)))
+        self.messages.put_nowait(
+            (msg._marshall(negotiate_unix_fd=self.negotiate_unix_fd), copy(msg.unix_fds)))
 
     def schedule_write(self, msg: Message = None):
         if msg is not None:
@@ -301,9 +302,9 @@ class MessageBus(BaseMessageBus):
             def done(fut):
                 with send_reply:
                     result = fut.result()
-                    body, fds = ServiceInterface._fn_result_to_body(result,
-                                                                    method.out_signature_tree)
-                    send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
+                    body, unix_fds = ServiceInterface._fn_result_to_body(
+                        result, method.out_signature_tree)
+                    send_reply(Message.new_method_return(msg, method.out_signature, body, unix_fds))
 
             args = ServiceInterface._msg_body_to_args(msg)
             fut = asyncio.ensure_future(method.fn(interface, *args))

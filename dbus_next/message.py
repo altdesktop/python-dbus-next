@@ -5,7 +5,7 @@ from .validators import assert_bus_name_valid, assert_member_name_valid, assert_
 from .errors import InvalidMessageError
 from .signature import SignatureTree, Variant
 
-from typing import List, Any, Union, IO
+from typing import List, Any
 
 
 class Message:
@@ -138,7 +138,7 @@ class Message:
     def new_method_return(msg: 'Message',
                           signature: str = '',
                           body: List[Any] = [],
-                          fds: List[Union[int, IO]] = []) -> 'Message':
+                          unix_fds: List[int] = []) -> 'Message':
         """A convenience constructor to create a method return to the given method call message.
 
         :param msg: The method call message this is a reply to.
@@ -147,8 +147,8 @@ class Message:
         :type signature: str
         :param body: The body of this message. Must match the signature.
         :type body: list(Any)
-        :param fds: List of filelike objects or integers representing file descriptors.
-        :type body: list(file object or int)
+        :param unix_fds: List integer file descriptors to send with this message.
+        :type body: list(int)
 
         :returns: The method return message
         :rtype: :class:`Message`
@@ -161,7 +161,7 @@ class Message:
                        destination=msg.sender,
                        signature=signature,
                        body=body,
-                       unix_fds=fds)
+                       unix_fds=unix_fds)
 
     @staticmethod
     def new_signal(path: str,
@@ -169,7 +169,7 @@ class Message:
                    member: str,
                    signature: str = '',
                    body: List[Any] = None,
-                   fds: List[Any] = None) -> 'Message':
+                   unix_fds: List[int] = None) -> 'Message':
         """A convenience constructor to create a new signal message.
 
         :param path: The path of this signal.
@@ -182,6 +182,8 @@ class Message:
         :type signature: str
         :param body: The body of this signal message.
         :type body: list(Any)
+        :param unix_fds: List integer file descriptors to send with this message.
+        :type body: list(int)
 
         :returns: The signal message.
         :rtype: :class:`Message`
@@ -199,7 +201,7 @@ class Message:
                        member=member,
                        signature=signature,
                        body=body,
-                       unix_fds=fds)
+                       unix_fds=unix_fds)
 
     def _matches(self, **kwargs):
         for attr, val in kwargs.items():
@@ -208,7 +210,7 @@ class Message:
 
         return True
 
-    def _marshall(self):
+    def _marshall(self, negotiate_unix_fd=False):
         # TODO maximum message size is 134217728 (128 MiB)
         body_block = Marshaller(self.signature, self.body)
         body_block.marshall()
@@ -229,7 +231,7 @@ class Message:
             fields.append([HeaderField.DESTINATION.value, Variant('s', self.destination)])
         if self.signature:
             fields.append([HeaderField.SIGNATURE.value, Variant('g', self.signature)])
-        if self.unix_fds:
+        if self.unix_fds and negotiate_unix_fd:
             fields.append([HeaderField.UNIX_FDS.value, Variant('u', len(self.unix_fds))])
 
         header_body = [
@@ -240,45 +242,3 @@ class Message:
         header_block.marshall()
         header_block.align(8)
         return header_block.buffer + body_block.buffer
-
-
-def _replace_fds(body_obj, children, replace_fn):
-    '''Replace any type 'h' with the value returned by replace_fn() given the
-    value of the fd field. This is used by the high level interfaces which
-    allow type 'h' to be the fd directly instead of an index in an external
-    array such as in the spec.'''
-    for index, st in enumerate(children):
-        if not any(sig in st.signature for sig in 'hv'):
-            continue
-        if st.signature == 'h':
-            body_obj[index] = replace_fn(body_obj[index])
-        elif st.token == 'a':
-            if st.children[0].token == '{':
-                _replace_fds(body_obj[index], st.children, replace_fn)
-            else:
-                for i, child in enumerate(body_obj[index]):
-                    if st.signature == 'ah':
-                        body_obj[index][i] = replace_fn(child)
-                    else:
-                        _replace_fds([child], st.children, replace_fn)
-        elif st.token in '(':
-            _replace_fds(body_obj[index], st.children, replace_fn)
-        elif st.token in '{':
-            for key, value in list(body_obj.items()):
-                body_obj.pop(key)
-                if st.children[0].signature == 'h':
-                    key = replace_fn(key)
-                if st.children[1].signature == 'h':
-                    value = replace_fn(value)
-                else:
-                    _replace_fds([value], [st.children[1]], replace_fn)
-                body_obj[key] = value
-
-        elif st.signature == 'v':
-            if body_obj[index].signature == 'h':
-                body_obj[index].value = replace_fn(body_obj[index].value)
-            else:
-                _replace_fds([body_obj[index].value], [body_obj[index].type], replace_fn)
-
-        elif st.children:
-            _replace_fds(body_obj[index], st.children, replace_fn)
