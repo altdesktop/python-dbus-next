@@ -165,12 +165,12 @@ loop.run_until_complete(main())
 
 ## Projects that use python-dbus-next
 
-* The [Playerctl](https://github.com/acrisci/playerctl) test suite
-* [i3-dstatus](https://github.com/acrisci/i3-dstatus)
+* The [Playerctl](https://github.com/altdesktop/playerctl) test suite
+* [i3-dstatus](https://github.com/altdesktop/i3-dstatus)
 
 ## Contributing
 
-Contributions are welcome. Development happens on [Github](https://github.com/acrisci/python-dbus-next).
+Contributions are welcome. Development happens on [Github](https://github.com/altdesktop/python-dbus-next).
 
 Before you commit, run `make` to run the linter, code formatter, and the test suite.
 

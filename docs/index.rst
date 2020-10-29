@@ -55,12 +55,12 @@ This library is available on PyPi as `dbus-next <https://pypi.org/project/dbus-n
 Contributing
 ++++++++++++
 
-Development for this library happens on `Github <https://github.com/acrisci/python-dbus-next>`_. Report bugs or request features there. Contributions are welcome.
+Development for this library happens on `Github <https://github.com/altdesktop/python-dbus-next>`_. Report bugs or request features there. Contributions are welcome.
 
 License
 ++++++++
 
-This library is available under an `MIT License <https://github.com/acrisci/python-dbus-next/blob/master/LICENSE>`_.
+This library is available under an `MIT License <https://github.com/altdesktop/python-dbus-next/blob/master/LICENSE>`_.
 
 © 2019, Tony Crisci
 
