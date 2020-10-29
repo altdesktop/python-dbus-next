@@ -418,9 +418,6 @@ class BaseMessageBus:
 
         :param msg: The message to send.
         :type msg: :class:`Message <dbus_next.Message>`
-
-        :raises:
-            - :class:`Exception` - If a connection error occurred.
         """
         raise NotImplementedError('the "send" method must be implemented in the inheriting class')
 

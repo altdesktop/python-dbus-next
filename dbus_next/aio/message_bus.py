@@ -36,10 +36,11 @@ class _MessageWriter:
                         # nothing more to write
                         self.loop.remove_writer(self.fd)
                         return
-                    buf, unix_fds = self.messages.get_nowait()
+                    buf, unix_fds, fut = self.messages.get_nowait()
                     self.unix_fds = unix_fds
                     self.buf = memoryview(buf)
                     self.offset = 0
+                    self.fut = fut
 
                 if self.unix_fds and self.negotiate_unix_fd:
                     ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
@@ -52,20 +53,24 @@ class _MessageWriter:
                 if self.offset >= len(self.buf):
                     # finished writing
                     self.buf = None
+                    if self.fut is not None:
+                        self.fut.set_result(None)
                 else:
                     # wait for writable
                     return
         except Exception as e:
+            if self.fut is not None:
+                self.fut.set_exception(e)
             self.loop.remove_writer(self.fd)
             self.bus._finalize(e)
 
-    def buffer_message(self, msg: Message):
+    def buffer_message(self, msg: Message, future=None):
         self.messages.put_nowait(
-            (msg._marshall(negotiate_unix_fd=self.negotiate_unix_fd), copy(msg.unix_fds)))
+            (msg._marshall(negotiate_unix_fd=self.negotiate_unix_fd), copy(msg.unix_fds), future))
 
-    def schedule_write(self, msg: Message = None):
+    def schedule_write(self, msg: Message = None, future=None):
         if msg is not None:
-            self.buffer_message(msg)
+            self.buffer_message(msg, future)
         if self.bus.unique_name:
             # don't run the writer until the bus is ready to send messages
             self.loop.add_writer(self.fd, self.write_callback)
@@ -89,6 +94,9 @@ class MessageBus(BaseMessageBus):
     :param auth: The authenticator to use, defaults to an instance of
         :class:`AuthExternal <dbus_next.auth.AuthExternal>`.
     :type auth: :class:`Authenticator <dbus_next.auth.Authenticator>`
+    :param negotiate_unix_fd: Allow the bus to send and receive Unix file
+        descriptors (DBus type 'h'). This must be supported by the transport.
+    :type negotiate_unix_fd: bool
 
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
@@ -259,14 +267,14 @@ class MessageBus(BaseMessageBus):
 
         :returns: A message in reply to the message sent. If the message does
             not expect a reply based on the message flags or type, returns
-            ``None`` immediately.
+            ``None`` after the message is sent.
         :rtype: :class:`Message <dbus_next.Message>` or :class:`None` if no reply is expected.
 
         :raises:
             - :class:`Exception` - If a connection error occurred.
         """
         if msg.flags & MessageFlag.NO_REPLY_EXPECTED or msg.message_type is not MessageType.METHOD_CALL:
-            self.send(msg)
+            await self.send(msg)
             return None
 
         future = self._loop.create_future()
@@ -285,10 +293,24 @@ class MessageBus(BaseMessageBus):
         return future.result()
 
     def send(self, msg: Message):
+        """Asynchronously send a message on the message bus.
+
+        .. note:: This method may change to a couroutine function in the 1.0
+            release of the library.
+
+        :param msg: The message to send.
+        :type msg: :class:`Message <dbus_next.Message>`
+
+        :returns: A future that resolves when the message is sent or a
+            connection error occurs.
+        :rtype: :class:`Future <asyncio.Future>`
+        """
         if not msg.serial:
             msg.serial = self.next_serial()
 
-        self._writer.schedule_write(msg)
+        future = self._loop.create_future()
+        self._writer.schedule_write(msg, future)
+        return future
 
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
