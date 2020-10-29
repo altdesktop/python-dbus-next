@@ -36,7 +36,7 @@ async def main():
 
     properties.on_properties_changed(on_properties_changed)
 
-    await loop.create_future()
+    await bus.wait_for_disconnect()
 
 
 loop.run_until_complete(main())

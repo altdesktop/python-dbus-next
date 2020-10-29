@@ -95,3 +95,5 @@ Once you have a proxy object, use the :func:`get_proxy_interface() <dbus_next.pr
 
     await interface.set_bar(105)
 
+    await bus.wait_for_disconnect()
+

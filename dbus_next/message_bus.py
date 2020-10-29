@@ -52,6 +52,10 @@ class BaseMessageBus:
         self.unique_name = None
         self._disconnected = False
 
+        # True if the user disconnected himself, so don't throw errors out of
+        # the main loop.
+        self._user_disconnect = False
+
         self._method_return_handlers = {}
         self._serial = 0
         self._user_message_handlers = []
@@ -364,6 +368,7 @@ class BaseMessageBus:
 
         All pending  and future calls will error with a connection error.
         """
+        self._user_disconnect = True
         self._sock.shutdown(socket.SHUT_RDWR)
 
     def next_serial(self) -> int:

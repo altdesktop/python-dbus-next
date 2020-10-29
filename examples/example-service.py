@@ -58,7 +58,7 @@ async def main():
     bus.export('/example/path', interface)
     await bus.request_name(name)
     print(f'service up on name: "{name}", path: "{path}", interface: "{interface_name}"')
-    await asyncio.get_event_loop().create_future()
+    await bus.wait_for_disconnect()
 
 
 asyncio.get_event_loop().run_until_complete(main())

@@ -86,7 +86,6 @@ After the service interface is defined, call :func:`MessageBus.export() <dbus_ne
 
         interface.changed()
 
-        # run forever
-        await asyncio.get_event_loop().create_future()
+        await bus.wait_for_disconnect()
 
     asyncio.get_event_loop().run_until_complete(main())

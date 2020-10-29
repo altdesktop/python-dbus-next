@@ -61,7 +61,6 @@ class _MessageWriter:
         except Exception as e:
             if self.fut is not None:
                 self.fut.set_exception(e)
-            self.loop.remove_writer(self.fd)
             self.bus._finalize(e)
 
     def buffer_message(self, msg: Message, future=None):
@@ -118,6 +117,8 @@ class MessageBus(BaseMessageBus):
             self._auth = AuthExternal()
         else:
             self._auth = auth
+
+        self._disconnect_future = self._loop.create_future()
 
     async def connect(self) -> 'MessageBus':
         """Connect this message bus to the DBus daemon.
@@ -315,6 +316,18 @@ class MessageBus(BaseMessageBus):
     def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
 
+    async def wait_for_disconnect(self):
+        """Wait for the message bus to disconnect.
+
+        :returns: :class:`None` when the message bus has disconnected.
+        :rtype: :class:`None`
+
+        :raises:
+            - :class:`Exception` - If connection was terminated unexpectedly or \
+              an internal error occurred in the library.
+        """
+        return await self._disconnect_future
+
     @classmethod
     def _make_method_handler(cls, interface, method):
         if not asyncio.iscoroutinefunction(method.fn):
@@ -343,7 +356,6 @@ class MessageBus(BaseMessageBus):
                 else:
                     break
         except Exception as e:
-            self._loop.remove_reader(self._fd)
             self._finalize(e)
 
     async def _auth_readline(self):
@@ -377,4 +389,18 @@ class MessageBus(BaseMessageBus):
         return Unmarshaller(self._stream, sock)
 
     def _finalize(self, err=None):
+        try:
+            self._loop.remove_reader(self._fd)
+            self._loop.remove_writer(self._fd)
+        except OSError:
+            pass
+
         super()._finalize(err)
+
+        if self._disconnect_future.done():
+            return
+
+        if err and not self._user_disconnect:
+            self._disconnect_future.set_exception(err)
+        else:
+            self._disconnect_future.set_result(None)

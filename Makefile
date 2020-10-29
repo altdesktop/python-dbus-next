@@ -35,6 +35,6 @@ docs:
 	sphinx-build docs docs/_build/html
 
 livedocs:
-	sphinx-autobuild docs docs/_build/html --watch dbus_next -i '*swp' -i '*~'
+	sphinx-autobuild docs docs/_build/html --watch dbus_next
 
 all: format lint test

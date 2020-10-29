@@ -55,13 +55,15 @@ Mixed use of the low and high level interfaces on the same bus connection is not
 
     bus.add_message_handler(message_handler)
 
+    await bus.wait_for_disconnect()
+
 :example: Emit a signal
 
 .. code-block:: python3
 
     bus = await MessageBus().connect()
 
-    bus.send(Message.new_signal('/com/test/path',
-                                'com.test.interface',
-                                'SomeSignal',
-                                's', ['a signal']))
+    await bus.send(Message.new_signal('/com/test/path',
+                                      'com.test.interface',
+                                      'SomeSignal',
+                                      's', ['a signal']))
