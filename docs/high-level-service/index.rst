@@ -22,6 +22,8 @@ A class method decorated with ``@method()`` or ``@dbus_property()`` may throw a 
 
 After the service interface is defined, call :func:`MessageBus.export() <dbus_next.message_bus.BaseMessageBus.export>` on a connected message bus and the service will be made available on the given object path.
 
+If any file descriptors are sent or received (DBus type ``h``), the variable refers to the file descriptor itself. You are responsible for closing any file descriptors sent or received by the bus. You must set the ``negotiate_unix_fd`` flag to ``True`` in the ``MessageBus`` constructor to use unix file descriptors.
+
 :example:
 
 .. code-block:: python3

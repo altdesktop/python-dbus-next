@@ -46,6 +46,8 @@ The proxy object is obtained by the :class:`MessageBus <dbus_next.message_bus.Ba
 
 Once you have a proxy object, use the :func:`get_proxy_interface() <dbus_next.proxy_object.BaseProxyObject.get_interface>` method to create an interface passing the name of the interface to get. Each message bus has its own implementation of the proxy interface which behaves slightly differently. This is an example of how to use a proxy interface for the asyncio :class:`MessageBus <dbus_next.aio.MessageBus>`.
 
+If any file descriptors are sent or received (DBus type ``h``), the variable refers to the file descriptor itself. You are responsible for closing any file descriptors sent or received by the bus. You must set the ``negotiate_unix_fd`` flag to ``True`` in the ``MessageBus`` constructor to use unix file descriptors.
+
 :example:
 
 .. code-block:: python3

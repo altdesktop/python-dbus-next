@@ -67,3 +67,25 @@ Mixed use of the low and high level interfaces on the same bus connection is not
                                       'com.test.interface',
                                       'SomeSignal',
                                       's', ['a signal']))
+
+:example: Send a file descriptor. The message format will be the same when
+          received on the client side. You are responsible for closing any file
+          descriptor that is sent or received by the bus. You must set the
+          ``negotiate_unix_fd`` flag to ``True`` in the ``MessageBus``
+          constructor to use unix file descriptors.
+
+.. code-block:: python3
+
+    bus = await MessageBus().connect(negotiate_unix_fd=True)
+
+    fd = os.open('/dev/null', os.O_RDONLY)
+
+    msg = Message(destination='org.test.destination',
+                  path='/org/test/destination',
+                  interface='org.test.interface',
+                  member='TestMember',
+                  signature='h',
+                  body=[0],
+                  unix_fds=[fd])
+
+    await bus.send(msg)
