@@ -1,5 +1,19 @@
 # Changelog
 
+## Version 0.2.1
+
+This version adds performance optimizations, bugfixes, and new features.
+
+* aio.MessageBus: Support passing unix fds. (#54)
+* Unmarshaller optimizations for a significant performance increase in message reading. (#62, #64)
+* Cache instances of `SignatureTree`. (ace5584)
+* Fix socket creation on macos. (#63)
+* Implement PEP 561 to indicate inline type hints. (#69)
+* aio.MessageBus: Return a future from `send()`. (302511b)
+* aio.MessageBus: Add `wait_for_disconnect()` to detect connection errors. (ab01ab1)
+
+Notice: `aio.MessageBus.send()` will be changed to a coroutine function in the 1.0 version of this library.
+
 ## Version 0.1.4
 
 This version adds some bugfixes and new features.
