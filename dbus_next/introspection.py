@@ -86,6 +86,9 @@ class Arg:
 
         return element
 
+    def __repr__(self):
+        return f"<Arg {self.name}[{self.direction}] ({self.signature})>"
+
 
 class Signal:
     """A class that represents a signal exposed on an interface.
@@ -144,6 +147,9 @@ class Signal:
             element.append(arg.to_xml())
 
         return element
+
+    def __repr__(self):
+        return f"<Signal {self.name}: {self.args} ({self.signature})>"
 
 
 class Method:
@@ -216,6 +222,9 @@ class Method:
 
         return element
 
+    def __repr__(self):
+        return f"<Method {self.name}({self.in_args}) -> {self.out_args}>"
+
 
 class Property:
     """A class that represents a DBus property exposed on an
@@ -281,6 +290,9 @@ class Property:
         element.set('type', self.signature)
         element.set('access', self.access.value)
         return element
+
+    def __repr__(self):
+        return f"<Property {self.name}[{self.access}]: {self.signature})>"
 
 
 class Interface:
@@ -357,6 +369,8 @@ class Interface:
 
         return element
 
+    def __repr__(self):
+        return f"<Interface {self.name}: {len(self.methods)} methods, {len(self.signals)} signals, {len(self.properties)} properties>"
 
 class Node:
     """A class that represents a node in an object path in introspection data.
@@ -550,3 +564,6 @@ class Node:
                                              ])
                                   ]),
                     ])
+
+    def __repr__(self):
+        return f"<Node {self.name}: {len(self.interfaces)} interfaces, {len(self.nodes)} nodes>"
