@@ -372,6 +372,7 @@ class Interface:
     def __repr__(self):
         return f"<Interface {self.name}: {len(self.methods)} methods, {len(self.signals)} signals, {len(self.properties)} properties>"
 
+
 class Node:
     """A class that represents a node in an object path in introspection data.
 
