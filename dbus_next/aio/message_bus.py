@@ -59,7 +59,7 @@ class _MessageWriter:
                     # wait for writable
                     return
         except Exception as e:
-            if self.fut is not None:
+            if self.fut is not None and not self.fut.done():
                 self.fut.set_exception(e)
             self.bus._finalize(e)
 
