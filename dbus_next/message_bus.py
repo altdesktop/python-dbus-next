@@ -369,7 +369,10 @@ class BaseMessageBus:
         All pending  and future calls will error with a connection error.
         """
         self._user_disconnect = True
-        self._sock.shutdown(socket.SHUT_RDWR)
+        try:
+            self._sock.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            logging.warning('could not shut down socket', exc_info=True)
 
     def next_serial(self) -> int:
         """Get the next serial for this bus. This can be used as the ``serial``
@@ -435,7 +438,10 @@ class BaseMessageBus:
         self._disconnected = True
 
         for handler in self._method_return_handlers.values():
-            handler(None, err)
+            try:
+                handler(None, err)
+            except Exception:
+                logging.warning('a message handler threw an exception on shutdown', exc_info=True)
 
         self._method_return_handlers.clear()
 
