@@ -4,13 +4,13 @@
 source_dirs = dbus_next test examples
 
 lint:
-	flake8 $(source_dirs)
+	python3 -m flake8 $(source_dirs)
 
 check: lint
-	yapf -rdp $(source_dirs)
+	python3 -m yapf -rdp $(source_dirs)
 
 format:
-	yapf -rip $(source_dirs)
+	python3 -m yapf -rip $(source_dirs)
 
 test:
 	for py in python3.6 python3.7 python3.9 python3.8 ; do \
