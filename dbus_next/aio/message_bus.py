@@ -8,12 +8,23 @@ from .proxy_object import ProxyObject
 from .. import introspection as intr
 from ..auth import Authenticator, AuthExternal
 
+import logging
 import array
 import asyncio
 from asyncio import Queue
 import socket
 from copy import copy
 from typing import Optional
+
+
+def _future_set_exception(fut, exc):
+    if fut is not None and not fut.done():
+        fut.set_exception(exc)
+
+
+def _future_set_result(fut, result):
+    if fut is not None and not fut.done():
+        fut.set_result(result)
 
 
 class _MessageWriter:
@@ -27,6 +38,7 @@ class _MessageWriter:
         self.fd = bus._fd
         self.offset = 0
         self.unix_fds = None
+        self.fut = None
 
     def write_callback(self):
         try:
@@ -53,14 +65,12 @@ class _MessageWriter:
                 if self.offset >= len(self.buf):
                     # finished writing
                     self.buf = None
-                    if self.fut is not None:
-                        self.fut.set_result(None)
+                    _future_set_result(self.fut, None)
                 else:
                     # wait for writable
                     return
         except Exception as e:
-            if self.fut is not None and not self.fut.done():
-                self.fut.set_exception(e)
+            _future_set_exception(self.fut, e)
             self.bus._finalize(e)
 
     def buffer_message(self, msg: Message, future=None):
@@ -145,9 +155,9 @@ class MessageBus(BaseMessageBus):
                     raise err
                 self.unique_name = reply.body[0]
                 self._writer.schedule_write()
-                future.set_result(self)
+                _future_set_result(future, self)
             except Exception as e:
-                future.set_exception(e)
+                _future_set_exception(future, e)
                 self.disconnect()
                 self._finalize(err)
 
@@ -194,9 +204,9 @@ class MessageBus(BaseMessageBus):
 
         def reply_handler(reply, err):
             if err:
-                future.set_exception(err)
+                _future_set_exception(future, err)
             else:
-                future.set_result(reply)
+                _future_set_result(future, reply)
 
         super().introspect(bus_name, path, reply_handler)
 
@@ -224,9 +234,9 @@ class MessageBus(BaseMessageBus):
 
         def reply_handler(reply, err):
             if err:
-                future.set_exception(err)
+                _future_set_exception(future, err)
             else:
-                future.set_result(reply)
+                _future_set_result(future, reply)
 
         super().request_name(name, flags, reply_handler)
 
@@ -252,9 +262,9 @@ class MessageBus(BaseMessageBus):
 
         def reply_handler(reply, err):
             if err:
-                future.set_exception(err)
+                _future_set_exception(future, err)
             else:
-                future.set_result(reply)
+                _future_set_result(future, reply)
 
         super().release_name(name, reply_handler)
 
@@ -283,9 +293,9 @@ class MessageBus(BaseMessageBus):
         def reply_handler(reply, err):
             if not future.done():
                 if err:
-                    future.set_exception(err)
+                    _future_set_exception(future, err)
                 else:
-                    future.set_result(reply)
+                    _future_set_result(future, reply)
 
         self._call(msg, reply_handler)
 
@@ -391,9 +401,12 @@ class MessageBus(BaseMessageBus):
     def _finalize(self, err=None):
         try:
             self._loop.remove_reader(self._fd)
+        except Exception:
+            logging.warning('could not remove message reader', exc_info=True)
+        try:
             self._loop.remove_writer(self._fd)
-        except OSError:
-            pass
+        except Exception:
+            logging.warning('could not remove message writer', exc_info=True)
 
         super()._finalize(err)
 
@@ -401,6 +414,6 @@ class MessageBus(BaseMessageBus):
             return
 
         if err and not self._user_disconnect:
-            self._disconnect_future.set_exception(err)
+            _future_set_exception(self._disconnect_future, err)
         else:
-            self._disconnect_future.set_result(None)
+            _future_set_result(self._disconnect_future, None)
