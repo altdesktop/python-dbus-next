@@ -49,6 +49,15 @@ Mixed use of the low and high level interfaces on the same bus connection is not
 
     bus = await MessageBus().connect()
 
+    reply = await bus.call(
+        Message(destination='org.freedesktop.DBus',
+                path='/org/freedesktop/DBus',
+                member='AddMatch',
+                signature='s',
+                body=["member='MyMember', interface='com.test.interface'"]))
+
+    assert reply.message_type == MessageType.METHOD_RETURN
+
     def message_handler(msg):
         if msg.interface == 'com.test.interface' and msg.member == 'MyMember':
             return Message.new_method_return(msg, 's', ['got it'])
