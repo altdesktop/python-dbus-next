@@ -110,6 +110,9 @@ class MessageBus(BaseMessageBus):
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
+    :ivar connected: True if this message bus is expected to be able to send
+        and receive messages.
+    :vartype connected: bool
     """
     def __init__(self,
                  bus_address: str = None,

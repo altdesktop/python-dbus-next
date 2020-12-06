@@ -139,6 +139,9 @@ class MessageBus(BaseMessageBus):
         :class:`AuthExternal <dbus_next.auth.AuthExternal>`.
     :type auth: :class:`Authenticator <dbus_next.auth.Authenticator>`
 
+    :ivar connected: True if this message bus is expected to be able to send
+        and receive messages.
+    :vartype connected: bool
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str

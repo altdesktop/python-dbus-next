@@ -10,8 +10,10 @@ import functools
 async def test_bus_disconnect_before_reply(event_loop):
     '''In this test, the bus disconnects before the reply comes in. Make sure
     the caller receives a reply with the error instead of hanging.'''
-
-    bus = await MessageBus().connect()
+    bus = MessageBus()
+    assert not bus.connected
+    await bus.connect()
+    assert bus.connected
 
     ping = bus.call(
         Message(destination='org.freedesktop.DBus',
@@ -25,12 +27,16 @@ async def test_bus_disconnect_before_reply(event_loop):
         await ping
 
     assert bus._disconnected
+    assert not bus.connected
     assert (await bus.wait_for_disconnect()) is None
 
 
 @pytest.mark.asyncio
 async def test_unexpected_disconnect(event_loop):
-    bus = await MessageBus().connect()
+    bus = MessageBus()
+    assert not bus.connected
+    await bus.connect()
+    assert bus.connected
 
     ping = bus.call(
         Message(destination='org.freedesktop.DBus',
@@ -44,6 +50,7 @@ async def test_unexpected_disconnect(event_loop):
         await ping
 
     assert bus._disconnected
+    assert not bus.connected
 
     with pytest.raises(OSError):
         await bus.wait_for_disconnect()

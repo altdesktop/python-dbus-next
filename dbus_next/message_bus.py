@@ -44,6 +44,9 @@ class BaseMessageBus:
     :ivar unique_name: The unique name of the message bus connection. It will
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
+    :ivar connected: True if this message bus is expected to be able to send
+        and receive messages.
+    :vartype connected: bool
     """
     def __init__(self,
                  bus_address: Optional[str] = None,
@@ -81,6 +84,12 @@ class BaseMessageBus:
         self._machine_id = None
 
         self._setup_socket()
+
+    @property
+    def connected(self):
+        if self.unique_name is None or self._disconnected or self._user_disconnect:
+            return False
+        return True
 
     def export(self, path: str, interface: ServiceInterface):
         """Export the service interface on this message bus to make it available
