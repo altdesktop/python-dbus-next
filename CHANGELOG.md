@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.2.2
+
+This version contains some bugfixes and a new feature
+
+* Add `connected` instance variable to the `MessageBus` (#74)
+* Better handling of message bus errors on disconnect (de8ed30)
+* Ensure futures are not done when settings results and exceptions (#73, 1213667)
+
 ## Version 0.2.1
 
 This version adds performance optimizations, bugfixes, and new features.
