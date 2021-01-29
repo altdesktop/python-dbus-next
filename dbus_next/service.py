@@ -354,7 +354,7 @@ class ServiceInterface:
         # validate that writable properties have a setter
         for prop in self.__properties:
             if prop.access.writable() and prop.prop_setter is None:
-                raise ValueError(f'property "{member.name}" is writable but does not have a setter')
+                raise ValueError(f'property "{prop.name}" is writable but does not have a setter')
 
     def emit_properties_changed(self,
                                 changed_properties: Dict[str, Any],
