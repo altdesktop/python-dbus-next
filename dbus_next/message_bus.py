@@ -962,6 +962,9 @@ class BaseMessageBus:
         del self._match_rules[match_rule]
 
         def remove_match_notify(msg, err):
+            if self._disconnected:
+                return
+
             if err:
                 logging.error(f'remove match request failed. match="{match_rule}", {err}')
             if msg.message_type == MessageType.ERROR:
