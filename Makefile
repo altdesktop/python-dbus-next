@@ -13,7 +13,7 @@ format:
 	python3 -m yapf -rip $(source_dirs)
 
 test:
-	for py in python3.6 python3.7 python3.9 python3.8 ; do \
+	for py in python3.10 python3.6 python3.7 python3.8 python3.9 ; do \
 		if hash $$py; then \
 			dbus-run-session $$py -m pytest -sv --cov=dbus_next || exit 1 ; \
 		fi \
