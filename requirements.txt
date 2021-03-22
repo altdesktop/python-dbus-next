@@ -1,5 +1,5 @@
-# These dependencies are for running the test suite and documentation generator
-only
+# This library has no required dependencies. These dependencies are only for
+# running the test suite and documentation generator.
 
 pytest==6.2.2
 pytest-asyncio==0.14.0

@@ -26,8 +26,6 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
     dbus \
     python3-gi
 
-COPY requirements.txt .
-
 RUN pip3 install yapf flake8 && \
     for py in python3 python3.6 python3.7 python3.9 python3.10; do \
         curl https://bootstrap.pypa.io/get-pip.py | $py; \
