@@ -8,16 +8,34 @@ from functools import wraps
 import inspect
 from typing import no_type_check_decorator, Dict, List, Any
 import copy
+import ast
 
-# TODO: if the user uses `from __future__ import annotations` in their code,
-# the annotation inspection will not work because of PEP 563. We will get
-# something that needs to be evaled because type hints will become "forward
-# definitions". You can do this eval automatically with
-# typing.get_type_hints(). This fails without the __future__ import on
-# python 3.7 but will always succeed on python4. I don't know how to tell if
-# the user has imported the future annotation feature. We might just not
-# support the future import on python3 for now and do a check for python4
-# later. I really hope they keep supporting this use case.
+
+def _parse_annotation(annotation: str) -> str:
+    '''
+    Because of PEP 563, if `from __future__ import annotations` is used in code
+    or on Python version >=3.10 where this is the default, return annotations
+    from the `inspect` module will return annotations as "forward definitions".
+    In this case, we must eval the result which we do only when given a string
+    constant.
+    '''
+    def raise_value_error():
+        raise ValueError(f'service annotations must be a string constant (got {annotation})')
+
+    if not annotation or annotation is inspect.Signature.empty:
+        return ''
+    if type(annotation) is not str:
+        raise_value_error()
+    try:
+        body = ast.parse(annotation).body
+        if len(body) == 1 and type(body[0].value) is ast.Constant:
+            if type(body[0].value.value) is not str:
+                raise_value_error()
+            return body[0].value.value
+    except SyntaxError:
+        pass
+
+    return annotation
 
 
 class _Method:
@@ -32,16 +50,17 @@ class _Method:
             if i == 0:
                 # first is self
                 continue
-            if param.annotation is inspect.Signature.empty:
+            annotation = _parse_annotation(param.annotation)
+            if not annotation:
                 raise ValueError(
                     'method parameters must specify the dbus type string as an annotation')
-            in_args.append(intr.Arg(param.annotation, intr.ArgDirection.IN, param.name))
-            in_signature += param.annotation
+            in_args.append(intr.Arg(annotation, intr.ArgDirection.IN, param.name))
+            in_signature += annotation
 
         out_args = []
-        if inspection.return_annotation is not inspect.Signature.empty:
-            out_signature = inspection.return_annotation
-            for type_ in SignatureTree._get(inspection.return_annotation).types:
+        out_signature = _parse_annotation(inspection.return_annotation)
+        if out_signature:
+            for type_ in SignatureTree._get(out_signature).types:
                 out_args.append(intr.Arg(type_, intr.ArgDirection.OUT))
 
         self.name = name
@@ -114,8 +133,10 @@ class _Signal:
         signature = ''
         signature_tree = None
 
-        if inspection.return_annotation is not inspect.Signature.empty:
-            signature = inspection.return_annotation
+        return_annotation = _parse_annotation(inspection.return_annotation)
+
+        if return_annotation:
+            signature = return_annotation
             signature_tree = SignatureTree._get(signature)
             for type_ in signature_tree.types:
                 args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -214,16 +235,18 @@ class _Property(property):
         self.prop_getter = fn
         self.prop_setter = None
 
-        sig = inspect.signature(fn)
-        if len(sig.parameters) != 1:
+        inspection = inspect.signature(fn)
+        if len(inspection.parameters) != 1:
             raise ValueError('the property must only have the "self" input parameter')
 
-        if sig.return_annotation is inspect.Signature.empty:
+        return_annotation = _parse_annotation(inspection.return_annotation)
+
+        if not return_annotation:
             raise ValueError(
                 'the property must specify the dbus type string as a return annotation string')
 
-        self.signature = sig.return_annotation
-        tree = SignatureTree._get(sig.return_annotation)
+        self.signature = return_annotation
+        tree = SignatureTree._get(return_annotation)
 
         if len(tree.types) != 1:
             raise ValueError('the property signature must be a single complete type')
