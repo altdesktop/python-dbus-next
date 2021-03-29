@@ -341,8 +341,7 @@ class MessageBus(BaseMessageBus):
         """
         return await self._disconnect_future
 
-    @classmethod
-    def _make_method_handler(cls, interface, method):
+    def _make_method_handler(self, interface, method):
         if not asyncio.iscoroutinefunction(method.fn):
             return super()._make_method_handler(interface, method)
 

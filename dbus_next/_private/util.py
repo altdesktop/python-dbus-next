@@ -1,5 +1,7 @@
 from typing import List, Any, Union
+import inspect
 from ..signature import SignatureTree, Variant
+import ast
 
 
 def signature_contains_type(signature: Union[str, SignatureTree], body: List[Any],
@@ -89,6 +91,33 @@ def replace_idx_with_fds(signature: Union[str, SignatureTree], body: List[Any],
     _replace_fds(body, signature.types, _replace)
 
     return body
+
+
+def parse_annotation(annotation: str) -> str:
+    '''
+    Because of PEP 563, if `from __future__ import annotations` is used in code
+    or on Python version >=3.10 where this is the default, return annotations
+    from the `inspect` module will return annotations as "forward definitions".
+    In this case, we must eval the result which we do only when given a string
+    constant.
+    '''
+    def raise_value_error():
+        raise ValueError(f'service annotations must be a string constant (got {annotation})')
+
+    if not annotation or annotation is inspect.Signature.empty:
+        return ''
+    if type(annotation) is not str:
+        raise_value_error()
+    try:
+        body = ast.parse(annotation).body
+        if len(body) == 1 and type(body[0].value) is ast.Constant:
+            if type(body[0].value.value) is not str:
+                raise_value_error()
+            return body[0].value.value
+    except SyntaxError:
+        pass
+
+    return annotation
 
 
 def _replace_fds(body_obj: List[Any], children, replace_fn):

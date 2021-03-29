@@ -2,40 +2,13 @@ from .constants import PropertyAccess
 from .signature import SignatureTree, SignatureBodyMismatchError, Variant
 from . import introspection as intr
 from .errors import SignalDisabledError
-from ._private.util import signature_contains_type, replace_fds_with_idx, replace_idx_with_fds
+from ._private.util import signature_contains_type, replace_fds_with_idx, replace_idx_with_fds, parse_annotation
 
 from functools import wraps
 import inspect
 from typing import no_type_check_decorator, Dict, List, Any
 import copy
-import ast
-
-
-def _parse_annotation(annotation: str) -> str:
-    '''
-    Because of PEP 563, if `from __future__ import annotations` is used in code
-    or on Python version >=3.10 where this is the default, return annotations
-    from the `inspect` module will return annotations as "forward definitions".
-    In this case, we must eval the result which we do only when given a string
-    constant.
-    '''
-    def raise_value_error():
-        raise ValueError(f'service annotations must be a string constant (got {annotation})')
-
-    if not annotation or annotation is inspect.Signature.empty:
-        return ''
-    if type(annotation) is not str:
-        raise_value_error()
-    try:
-        body = ast.parse(annotation).body
-        if len(body) == 1 and type(body[0].value) is ast.Constant:
-            if type(body[0].value.value) is not str:
-                raise_value_error()
-            return body[0].value.value
-    except SyntaxError:
-        pass
-
-    return annotation
+import asyncio
 
 
 class _Method:
@@ -50,7 +23,7 @@ class _Method:
             if i == 0:
                 # first is self
                 continue
-            annotation = _parse_annotation(param.annotation)
+            annotation = parse_annotation(param.annotation)
             if not annotation:
                 raise ValueError(
                     'method parameters must specify the dbus type string as an annotation')
@@ -58,7 +31,7 @@ class _Method:
             in_signature += annotation
 
         out_args = []
-        out_signature = _parse_annotation(inspection.return_annotation)
+        out_signature = parse_annotation(inspection.return_annotation)
         if out_signature:
             for type_ in SignatureTree._get(out_signature).types:
                 out_args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -133,7 +106,7 @@ class _Signal:
         signature = ''
         signature_tree = None
 
-        return_annotation = _parse_annotation(inspection.return_annotation)
+        return_annotation = parse_annotation(inspection.return_annotation)
 
         if return_annotation:
             signature = return_annotation
@@ -239,7 +212,7 @@ class _Property(property):
         if len(inspection.parameters) != 1:
             raise ValueError('the property must only have the "self" input parameter')
 
-        return_annotation = _parse_annotation(inspection.return_annotation)
+        return_annotation = parse_annotation(inspection.return_annotation)
 
         if not return_annotation:
             raise ValueError(
@@ -431,18 +404,6 @@ class ServiceInterface:
                               ])
 
     @staticmethod
-    def _add_bus(interface, bus):
-        interface.__buses.add(bus)
-
-    @staticmethod
-    def _remove_bus(interface, bus):
-        interface.__buses.remove(bus)
-
-    @staticmethod
-    def _get_buses(interface):
-        return interface.__buses
-
-    @staticmethod
     def _get_properties(interface):
         return interface.__properties
 
@@ -453,6 +414,18 @@ class ServiceInterface:
     @staticmethod
     def _get_signals(interface):
         return interface.__signals
+
+    @staticmethod
+    def _get_buses(interface):
+        return interface.__buses
+
+    @staticmethod
+    def _add_bus(interface, bus):
+        interface.__buses.add(bus)
+
+    @staticmethod
+    def _remove_bus(interface, bus):
+        interface.__buses.remove(bus)
 
     @staticmethod
     def _msg_body_to_args(msg):
@@ -482,8 +455,8 @@ class ServiceInterface:
 
         if out_len != len(result):
             raise SignatureBodyMismatchError(
-                "Signature and function return mismatch, expected %s arguments but got %s",
-                (len(signature_tree.types), len(result)))
+                f"Signature and function return mismatch, expected {len(signature_tree.types)} arguments but got {len(result)}"
+            )
 
         return replace_fds_with_idx(signature_tree, result)
 
@@ -491,6 +464,88 @@ class ServiceInterface:
     def _handle_signal(interface, signal, result):
         body, fds = ServiceInterface._fn_result_to_body(result, signal.signature_tree)
         for bus in ServiceInterface._get_buses(interface):
-            # TODO: can signal pass fds?
             bus._interface_signal_notify(interface, interface.name, signal.name, signal.signature,
                                          body, fds)
+
+    @staticmethod
+    def _get_property_value(interface, prop, callback):
+        # XXX MUST CHECK TYPE RETURNED BY GETTER
+        try:
+            if asyncio.iscoroutinefunction(prop.prop_getter):
+                task = asyncio.ensure_future(prop.prop_getter(interface))
+
+                def get_property_callback(task):
+                    try:
+                        result = task.result()
+                    except Exception as e:
+                        callback(interface, prop, None, e)
+                        return
+
+                    callback(interface, prop, result, None)
+
+                task.add_done_callback(get_property_callback)
+                return
+
+            callback(interface, prop, getattr(interface, prop.prop_getter.__name__), None)
+        except Exception as e:
+            callback(interface, prop, None, e)
+
+    @staticmethod
+    def _set_property_value(interface, prop, value, callback):
+        # XXX MUST CHECK TYPE TO SET
+        try:
+            if asyncio.iscoroutinefunction(prop.prop_setter):
+                task = asyncio.ensure_future(prop.prop_setter(interface, value))
+
+                def set_property_callback(task):
+                    try:
+                        task.result()
+                    except Exception as e:
+                        callback(interface, prop, e)
+                        return
+
+                    callback(interface, prop, None)
+
+                task.add_done_callback(set_property_callback)
+                return
+
+            setattr(interface, prop.prop_setter.__name__, value)
+            callback(interface, prop, None)
+        except Exception as e:
+            callback(interface, prop, e)
+
+    @staticmethod
+    def _get_all_property_values(interface, callback, user_data=None):
+        result = {}
+        result_error = None
+
+        for prop in ServiceInterface._get_properties(interface):
+            if prop.disabled or not prop.access.readable():
+                continue
+            result[prop.name] = None
+
+        if not result:
+            callback(interface, result, user_data, None)
+            return
+
+        def get_property_callback(interface, prop, value, e):
+            nonlocal result_error
+            if e is not None:
+                result_error = e
+                del result[prop.name]
+            else:
+                try:
+                    result[prop.name] = Variant(prop.signature, value)
+                except SignatureBodyMismatchError as e:
+                    result_error = e
+                    del result[prop.name]
+
+            if any(v is None for v in result.values()):
+                return
+
+            callback(interface, result, user_data, result_error)
+
+        for prop in ServiceInterface._get_properties(interface):
+            if prop.disabled or not prop.access.readable():
+                continue
+            ServiceInterface._get_property_value(interface, prop, get_property_callback)

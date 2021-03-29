@@ -8,7 +8,6 @@ from .errors import DBusError, InvalidAddressError
 from .signature import Variant
 from .proxy_object import BaseProxyObject
 from . import introspection as intr
-from contextlib import suppress
 
 import inspect
 import socket
@@ -222,20 +221,27 @@ class BaseMessageBus:
         if self._disconnected:
             return
 
-        body = {interface.name: {}}
-        properties = interface._get_properties(interface)
+        def get_properties_callback(interface, result, user_data, e):
+            if e is not None:
+                try:
+                    raise e
+                except Exception:
+                    logging.error(
+                        'An exception ocurred when emitting ObjectManager.InterfacesAdded for %s. '
+                        'Some properties will not be included in the signal.',
+                        interface.name,
+                        exc_info=True)
 
-        for prop in properties:
-            with suppress(Exception):
-                body[interface.name][prop.name] = Variant(prop.signature,
-                                                          prop.prop_getter(interface))
+            body = {interface.name: result}
 
-        self.send(
-            Message.new_signal(path=path,
-                               interface='org.freedesktop.DBus.ObjectManager',
-                               member='InterfacesAdded',
-                               signature='oa{sa{sv}}',
-                               body=[path, body]))
+            self.send(
+                Message.new_signal(path=path,
+                                   interface='org.freedesktop.DBus.ObjectManager',
+                                   member='InterfacesAdded',
+                                   signature='oa{sa{sv}}',
+                                   body=[path, body]))
+
+        ServiceInterface._get_all_property_values(interface, get_properties_callback)
 
     def _emit_interface_removed(self, path, removed_interfaces):
         """Emit the ``org.freedesktop.DBus.ObjectManager.InterfacesRemoved` signal.
@@ -630,7 +636,7 @@ class BaseMessageBus:
 
                 bus.send(reply)
 
-            def __exit__(self, exc_type, exc_value, tb):
+            def _exit(self, exc_type, exc_value, tb):
                 if exc_type is None:
                     return
 
@@ -645,6 +651,12 @@ class BaseMessageBus:
                             f'The service interface raised an error: {exc_value}.\n{traceback.format_tb(tb)}'
                         ))
                     return True
+
+            def __exit__(self, exc_type, exc_value, tb):
+                self._exit(exc_type, exc_value, tb)
+
+            def send_error(self, exc):
+                self._exit(exc.__class__, exc, exc.__traceback__)
 
         return SendReply()
 
@@ -713,8 +725,7 @@ class BaseMessageBus:
                     handler(msg, None)
                 del self._method_return_handlers[msg.reply_serial]
 
-    @classmethod
-    def _make_method_handler(cls, interface, method):
+    def _make_method_handler(self, interface, method):
         def handler(msg, send_reply):
             args = ServiceInterface._msg_body_to_args(msg)
             result = method.fn(interface, *args)
@@ -792,16 +803,51 @@ class BaseMessageBus:
 
     def _default_get_managed_objects_handler(self, msg, send_reply):
         result = {}
+        result_signature = 'a{oa{sa{sv}}}'
+        error_handled = False
 
-        for node in self._path_exports:
-            if not node.startswith(msg.path + '/') and msg.path != '/':
-                continue
+        def is_result_complete():
+            if not result:
+                return True
+            for n, interfaces in result.items():
+                for value in interfaces.values():
+                    if value is None:
+                        return False
 
+            return True
+
+        nodes = [
+            node for node in self._path_exports
+            if msg.path == '/' or node.startswith(msg.path + '/')
+        ]
+
+        # first build up the result object to know when it's complete
+        for node in nodes:
             result[node] = {}
             for interface in self._path_exports[node]:
-                result[node][interface.name] = self._get_all_properties(interface)
+                result[node][interface.name] = None
 
-        send_reply(Message.new_method_return(msg, 'a{oa{sa{sv}}}', [result]))
+        if is_result_complete():
+            send_reply(Message.new_method_return(msg, result_signature, [result]))
+            return
+
+        def get_all_properties_callback(interface, values, node, err):
+            nonlocal error_handled
+            if err is not None:
+                if not error_handled:
+                    error_handled = True
+                    send_reply.send_error(err)
+                return
+
+            result[node][interface.name] = values
+
+            if is_result_complete():
+                send_reply(Message.new_method_return(msg, result_signature, [result]))
+
+        for node in nodes:
+            for interface in self._path_exports[node]:
+                ServiceInterface._get_all_property_values(interface, get_all_properties_callback,
+                                                          node)
 
     def _default_properties_handler(self, msg, send_reply):
         methods = {'Get': 'ss', 'Set': 'ssv', 'GetAll': 's'}
@@ -858,14 +904,24 @@ class BaseMessageBus:
                 if not prop.access.readable():
                     raise DBusError(ErrorType.UNKNOWN_PROPERTY,
                                     'the property does not have read access')
-                prop_value = getattr(interface, prop.prop_getter.__name__)
 
-                body, unix_fds = replace_fds_with_idx(prop.signature, [prop_value])
+                def get_property_callback(interface, prop, prop_value, err):
+                    try:
+                        if err is not None:
+                            send_reply.send_error(err)
+                            return
 
-                send_reply(
-                    Message.new_method_return(msg,
-                                              'v', [Variant(prop.signature, body[0])],
-                                              unix_fds=unix_fds))
+                        body, unix_fds = replace_fds_with_idx(prop.signature, [prop_value])
+
+                        send_reply(
+                            Message.new_method_return(msg,
+                                                      'v', [Variant(prop.signature, body[0])],
+                                                      unix_fds=unix_fds))
+                    except Exception as e:
+                        send_reply.send_error(e)
+
+                ServiceInterface._get_property_value(interface, prop, get_property_callback)
+
             elif msg.member == 'Set':
                 if not prop.access.writable():
                     raise DBusError(ErrorType.PROPERTY_READ_ONLY, 'the property is readonly')
@@ -874,27 +930,30 @@ class BaseMessageBus:
                     raise DBusError(ErrorType.INVALID_SIGNATURE,
                                     f'wrong signature for property. expected "{prop.signature}"')
                 assert prop.prop_setter
+
+                def set_property_callback(interface, prop, err):
+                    if err is not None:
+                        send_reply.send_error(err)
+                        return
+                    send_reply(Message.new_method_return(msg))
+
                 body = replace_idx_with_fds(value.signature, [value.value], msg.unix_fds)
-                setattr(interface, prop.prop_setter.__name__, body[0])
-                send_reply(Message.new_method_return(msg))
+                ServiceInterface._set_property_value(interface, prop, body[0],
+                                                     set_property_callback)
 
         elif msg.member == 'GetAll':
-            body, unix_fds = replace_fds_with_idx('a{sv}', [self._get_all_properties(interface)])
-            send_reply(Message.new_method_return(msg, 'a{sv}', body, unix_fds=unix_fds))
+
+            def get_all_properties_callback(interface, values, user_data, err):
+                if err is not None:
+                    send_reply.send_error(err)
+                    return
+                body, unix_fds = replace_fds_with_idx('a{sv}', [values])
+                send_reply(Message.new_method_return(msg, 'a{sv}', body, unix_fds=unix_fds))
+
+            ServiceInterface._get_all_property_values(interface, get_all_properties_callback)
 
         else:
             assert False
-
-    def _get_all_properties(self, interface):
-        result = {}
-
-        for prop in ServiceInterface._get_properties(interface):
-            if prop.disabled or not prop.access.readable():
-                continue
-            result[prop.name] = Variant(prop.signature, getattr(interface,
-                                                                prop.prop_getter.__name__))
-
-        return result
 
     def _init_high_level_client(self):
         '''The high level client is initialized when the first proxy object is
