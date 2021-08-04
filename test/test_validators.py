@@ -43,7 +43,7 @@ def test_interface_name_validator():
 
 
 def test_member_name_validator():
-    valid_members = ['foo', 'FooBar', 'Bat_Baz69']
+    valid_members = ['foo', 'FooBar', 'Bat_Baz69', 'foo-bar']
     invalid_members = [None, {}, '', 'foo.bar', '5foo', 'foo$bar']
 
     for member in valid_members:

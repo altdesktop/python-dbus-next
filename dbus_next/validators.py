@@ -4,6 +4,7 @@ from .errors import InvalidBusNameError, InvalidObjectPathError, InvalidInterfac
 _bus_name_re = re.compile(r'^[A-Za-z_-][A-Za-z0-9_-]*$')
 _path_re = re.compile(r'^[A-Za-z0-9_]+$')
 _element_re = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+_member_re = re.compile(r'^[A-Za-z_][A-Za-z0-9_-]*$')
 
 
 def is_bus_name_valid(name: str) -> bool:
@@ -117,7 +118,7 @@ def is_member_name_valid(member: str) -> bool:
     if not member or len(member) > 255:
         return False
 
-    if _element_re.search(member) is None:
+    if _member_re.search(member) is None:
         return False
 
     return True
