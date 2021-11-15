@@ -65,7 +65,7 @@ async def main():
     await player.set_volume(0.5)
 
     # listen to signals
-    def on_properties_changed(interface_name, changed_properties, invalidated_properties):
+    def on_properties_changed(interface_name: 's', changed_properties: '{sv}', invalidated_properties: 'as'):
         for changed, variant in changed_properties.items():
             print(f'property changed: {changed} - {variant.value}')
 
