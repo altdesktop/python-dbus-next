@@ -114,7 +114,7 @@ class BaseProxyInterface:
                 right_side_type = right_side.type
                 if left_side_annotation != right_side_annotation:
                     err_msg_verbose = f'arg({index}) annotation, {left_side_name}:"{left_side_annotation}" does not match return annotation "{right_side_annotation}"'
-                    arr_arg_signature_mismatch.append(err_msg_terse)
+                    arr_arg_signature_mismatch.append(err_msg_verbose)
         if len(arr_arg_signature_mismatch)!=0:
             str_annotation_mismatch = 'In signal handler "{fn_name}", {}'.format('. '.join(arr_arg_signature_mismatch))
             raise AnnotationMismatchError(str_annotation_mismatch)
