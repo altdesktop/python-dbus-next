@@ -50,6 +50,10 @@ class InvalidMemberNameError(TypeError):
         super().__init__(f'invalid member name: {member}')
 
 
+class AnnotationMismatchError(TypeError):
+    def __init__(self, msg):
+        super().__init__(f'In signal handler, there is, one or more, mismatch of arg annotation: {msg}')
+
 from .message import Message
 from .validators import assert_interface_name_valid
 from .constants import ErrorType, MessageType
