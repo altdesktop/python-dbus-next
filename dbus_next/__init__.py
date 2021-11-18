@@ -6,7 +6,7 @@ from .errors import (SignatureBodyMismatchError, InvalidSignatureError, InvalidA
                      AuthError, InvalidMessageError, InvalidIntrospectionError,
                      InterfaceNotFoundError, SignalDisabledError, InvalidBusNameError,
                      InvalidObjectPathError, InvalidInterfaceNameError, InvalidMemberNameError,
-                     DBusError)
+                     AnnotationMismatchError, DBusError)
 from . import introspection
 from .message import Message
 from . import message_bus
