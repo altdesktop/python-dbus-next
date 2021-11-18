@@ -3,7 +3,7 @@ from . import message_bus
 from .message import Message
 from .constants import MessageType, ErrorType
 from . import introspection as intr
-from .errors import DBusError, InterfaceNotFoundError
+from .errors import DBusError, InterfaceNotFoundError, AnnotationMismatchError
 from ._private.util import replace_idx_with_fds
 
 from typing import Type, Union, List, Coroutine
@@ -66,6 +66,59 @@ class BaseProxyInterface:
             raise DBusError(ErrorType.CLIENT_ERROR,
                             f'method call returned unexpected signature: "{msg.signature}"', msg)
 
+    @staticmethod
+    def _check_signal_annotations(fn_name, fn_signature, intr_signal):
+        """ If signal handler args' annotation are provided this implies 
+            strict annotation checking. If there is a signal handler 
+            arg annotation mismatch, inform each occurrence by rasing 
+            only one error.
+            
+            If signal handler arg annotation is left out, be lenient. 
+            Apply lovingkindness rather than strict justice. The 
+            intention is not to be concerned about correctness of the 
+            annotations.
+            
+            Assumes check has already occurred for:
+            
+            - signal handler is callable
+            - the DBus service return and the signal handler 
+              have the same number of args.
+            
+            :ivar fn_name: signal handler function name.
+            :vartype fn_name: str
+            :ivar fn_signature: signal handler signature. Includes args. name and annotations.
+            :vartype fn_signature: inspect.Signature
+            :ivar intr_signal: DBus service signal return value. Includes annotation.
+            :vartype intr_signal: dbus_next.introspection.Signal
+            
+            :raises:
+            - :class:`AnnotationMismatchError <dbus_next.AnnotationMismatchError>` - Mismatch in signal handler arg annotation.
+        """
+        arr_arg_signature_mismatch = []
+        for index, (fn_arg_name, fn_arg_signature) in enumerate(fn_signature.parameters.items()):
+            ''' Implementation terminology is based on this condition, 
+                `len(fn_signature.parameters) == len(intr_signal.args)`
+                         LEFT SIDE                RIGHT SIDE
+                
+                Left side: `High level Client` signal handler annotations
+                Right side: DBus service returned value annotations
+            '''
+            left_side_name = fn_arg_signature.name
+            left_side_annotation = fn_arg_signature.annotation
+            
+            if isinstance(left_side_annotation, str) and len(left_side_annotation)!=0:
+                right_side = intr_signal.args[index]
+                right_side_name = right_side.name
+                right_side_annotation = right_side.signature
+                right_side_direction = right_side.direction
+                right_side_type = right_side.type
+                if left_side_annotation != right_side_annotation:
+                    err_msg_verbose = f'arg({index}) annotation, {left_side_name}:"{left_side_annotation}" does not match return annotation "{right_side_annotation}"'
+                    arr_arg_signature_mismatch.append(err_msg_terse)
+        if len(arr_arg_signature_mismatch)!=0:
+            str_annotation_mismatch = 'In signal handler "{fn_name}", {}'.format('. '.join(arr_arg_signature_mismatch))
+            raise AnnotationMismatchError(str_annotation_mismatch)
+
     def _add_method(self, intr_method):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
@@ -108,7 +161,8 @@ class BaseProxyInterface:
             if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
                 raise TypeError(
                     f'reply_notify must be a function with {len(intr_signal.args)} parameters')
-
+            BaseProxyInterface._check_signal_annotations(fn.__name__, fn_signature, intr_signal)
+            
             if not self._signal_handlers:
                 self.bus._add_match_rule(self._signal_match_rule)
                 self.bus.add_message_handler(self._message_handler)
