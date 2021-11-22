@@ -27,9 +27,10 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
     python3-gi
 
 RUN pip3 install yapf flake8 && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
     for py in python3 python3.6 python3.7 python3.9 python3.10; do \
-        curl https://bootstrap.pypa.io/get-pip.py | $py; \
-        $py -m pip install \
+        ${py} get-pip.py; \
+        PYTHONPATH=/usr/lib/${py}/site-packages ${py} -m pip install \
             pytest \
             pytest-asyncio \
             pytest-timeout \
