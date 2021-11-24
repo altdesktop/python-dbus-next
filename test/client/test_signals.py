@@ -1,6 +1,6 @@
-from dbus_next.service import ServiceInterface, signal
+from dbus_next.service import ServiceInterface, signal, method, dbus_property
 from dbus_next.aio import MessageBus
-from dbus_next import Message
+from dbus_next import Message, InvalidAddressError
 from dbus_next.introspection import Node
 from dbus_next.constants import RequestNameReply
 
@@ -10,6 +10,15 @@ import pytest
 class ExampleInterface(ServiceInterface):
     def __init__(self):
         super().__init__('test.interface')
+        self._some_property = 'foo'
+
+    @dbus_property()
+    def SomeProperty(self) -> 's':
+        return self._some_property
+
+    @SomeProperty.setter
+    def SomeProperty(self, val: 's'):
+        self._some_property = val
 
     @signal()
     def SomeSignal(self) -> 's':
@@ -18,6 +27,10 @@ class ExampleInterface(ServiceInterface):
     @signal()
     def SignalMultiple(self) -> 'ss':
         return ['hello', 'world']
+
+    @method()
+    def Echo(self, what: 's') -> 's':
+        return what
 
 
 @pytest.mark.asyncio
@@ -206,6 +219,94 @@ async def test_signals_with_changing_owners():
     await ping()
     assert counter == 1
     counter = 0
+
+    bus1.disconnect()
+    bus2.disconnect()
+    bus3.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_signals_without_owners():
+    well_known_name = None
+
+    bus1 = await MessageBus().connect()
+    bus2 = await MessageBus().connect()
+    bus3 = await MessageBus().connect()
+
+    async def ping():
+        await bus1.call(
+            Message(destination=bus1.unique_name,
+                    interface='org.freedesktop.DBus.Peer',
+                    path='/test/path',
+                    member='Ping'))
+
+    service_interface = ExampleInterface()
+    introspection = Node.default()
+    introspection.interfaces.append(service_interface.introspect())
+
+    # get the interface before export
+    obj = bus1.get_proxy_object(well_known_name, '/test/path', introspection)
+    iface = obj.get_interface('test.interface')
+    counter = 0
+
+    def handler(what):
+        nonlocal counter
+        counter += 1
+
+    iface.on_some_signal(handler)
+    await ping()
+
+    # now export
+    bus2.export('/test/path', service_interface)
+
+    # the signal should work
+    service_interface.SomeSignal()
+    await ping()
+    assert counter == 1
+    counter = 0
+
+    # now queue up a transfer of the name
+    service_interface2 = ExampleInterface()
+    bus3.export('/test/path', service_interface2)
+
+    # both signals should work here
+    service_interface.SomeSignal()
+    service_interface2.SomeSignal()
+    await ping()
+    assert counter == 2
+    counter = 0
+
+    # it should work still
+    bus2.disconnect()
+    await ping()
+
+    service_interface2.SomeSignal()
+    await ping()
+    assert counter == 1
+    counter = 0
+
+    with pytest.raises(InvalidAddressError):
+        try:
+            echo = await iface.call_echo("test")
+            assert False, echo
+        except InvalidAddressError as e:
+            assert str(e) == "Method Echo needs a bus_name"
+            raise e
+
+    with pytest.raises(InvalidAddressError):
+        try:
+            prop = await iface.get_some_property()
+            assert False, prop
+        except InvalidAddressError as e:
+            assert str(e) == "Property SomeProperty needs a bus_name"
+            raise e
+
+    with pytest.raises(InvalidAddressError):
+        try:
+            await iface.set_some_property('different')
+        except InvalidAddressError as e:
+            assert str(e) == "Property SomeProperty needs a bus_name"
+            raise e
 
     bus1.disconnect()
     bus2.disconnect()

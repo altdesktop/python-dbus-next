@@ -347,7 +347,7 @@ class BaseMessageBus:
                     signature='s',
                     body=[name]), reply_notify if callback else None)
 
-    def get_proxy_object(self, bus_name: str, path: str,
+    def get_proxy_object(self, bus_name: Optional[str], path: str,
                          introspection: Union[intr.Node, str, ET.Element]) -> BaseProxyObject:
         """Get a proxy object for the path exported on the bus that owns the
         name. The object is expected to export the interfaces and nodes

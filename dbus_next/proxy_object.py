@@ -3,10 +3,10 @@ from . import message_bus
 from .message import Message
 from .constants import MessageType, ErrorType
 from . import introspection as intr
-from .errors import DBusError, InterfaceNotFoundError
+from .errors import DBusError, InterfaceNotFoundError, InvalidAddressError
 from ._private.util import replace_idx_with_fds
 
-from typing import Type, Union, List, Coroutine
+from typing import Type, Union, List, Coroutine, Optional
 import logging
 import xml.etree.ElementTree as ET
 import inspect
@@ -39,14 +39,16 @@ class BaseProxyInterface:
     :ivar bus: The message bus this proxy interface is connected to.
     :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
     """
-    def __init__(self, bus_name, path, introspection, bus):
+    def __init__(self, bus_name: Optional[str], path: str, introspection: Union[intr.Node, str,
+                                                                                ET.Element],
+                 bus: 'message_bus.BaseMessageBus'):
 
         self.bus_name = bus_name
         self.path = path
         self.introspection = introspection
         self.bus = bus
         self._signal_handlers = {}
-        self._signal_match_rule = f"type='signal',sender={bus_name},interface={introspection.name},path={path}"
+        self._signal_match_rule = f"type='signal'{',sender=' + bus_name if bus_name else ''},interface={introspection.name},path={path}"
 
     _underscorer1 = re.compile(r'(.)([A-Z][a-z]+)')
     _underscorer2 = re.compile(r'([a-z0-9])([A-Z])')
@@ -72,14 +74,32 @@ class BaseProxyInterface:
     def _add_property(self, intr_property):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
+    def _add_name_disabled_method(self, intr_method):
+        async def method_fn(*args, **kwargs):
+            raise InvalidAddressError(f'Method {intr_method.name} needs a bus_name')
+
+        method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
+        setattr(self, method_name, method_fn)
+
+    def _add_name_disabled_property(self, intr_property):
+        async def property_getter():
+            raise InvalidAddressError(f'Property {intr_property.name} needs a bus_name')
+
+        async def property_setter(val):
+            raise InvalidAddressError(f'Property {intr_property.name} needs a bus_name')
+
+        snake_case = BaseProxyInterface._to_snake_case(intr_property.name)
+        setattr(self, f'get_{snake_case}', property_getter)
+        setattr(self, f'set_{snake_case}', property_setter)
+
     def _message_handler(self, msg):
         if not msg._matches(message_type=MessageType.SIGNAL,
                             interface=self.introspection.name,
                             path=self.path) or msg.member not in self._signal_handlers:
             return
 
-        if msg.sender != self.bus_name and self.bus._name_owners.get(self.bus_name,
-                                                                     '') != msg.sender:
+        if self.bus_name and msg.sender != self.bus_name and self.bus._name_owners.get(
+                self.bus_name, '') != msg.sender:
             # The sender is always a unique name, but the bus name given might
             # be a well known name. If the sender isn't an exact match, check
             # to see if it owns the bus_name we were given from the cache kept
@@ -170,10 +190,12 @@ class BaseProxyObject:
         - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
         - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the introspection data for the node is not valid.
     """
-    def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
+    def __init__(self, bus_name: Optional[str], path: str, introspection: Union[intr.Node, str,
+                                                                                ET.Element],
                  bus: 'message_bus.BaseMessageBus', ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)
-        assert_bus_name_valid(bus_name)
+        if bus_name:
+            assert_bus_name_valid(bus_name)
 
         if not isinstance(bus, message_bus.BaseMessageBus):
             raise TypeError('bus must be an instance of BaseMessageBus')
@@ -221,9 +243,15 @@ class BaseProxyObject:
         interface = self.ProxyInterface(self.bus_name, self.path, intr_interface, self.bus)
 
         for intr_method in intr_interface.methods:
-            interface._add_method(intr_method)
+            if self.bus_name:
+                interface._add_method(intr_method)
+            else:
+                interface._add_name_disabled_method(intr_method)
         for intr_property in intr_interface.properties:
-            interface._add_property(intr_property)
+            if self.bus_name:
+                interface._add_property(intr_property)
+            else:
+                interface._add_name_disabled_property(intr_property)
         for intr_signal in intr_interface.signals:
             interface._add_signal(intr_signal, interface)
 
@@ -238,7 +266,8 @@ class BaseProxyObject:
 
             self.bus._name_owners[self.bus_name] = msg.body[0]
 
-        if self.bus_name[0] != ':' and not self.bus._name_owners.get(self.bus_name, ''):
+        if self.bus_name and self.bus_name[0] != ':' and not self.bus._name_owners.get(
+                self.bus_name, ''):
             self.bus._call(
                 Message(destination='org.freedesktop.DBus',
                         interface='org.freedesktop.DBus',

@@ -326,7 +326,8 @@ class MessageBus(BaseMessageBus):
         self._writer.schedule_write(msg, future)
         return future
 
-    def get_proxy_object(self, bus_name: str, path: str, introspection: intr.Node) -> ProxyObject:
+    def get_proxy_object(self, bus_name: Optional[str], path: str,
+                         introspection: intr.Node) -> ProxyObject:
         return super().get_proxy_object(bus_name, path, introspection)
 
     async def wait_for_disconnect(self):
