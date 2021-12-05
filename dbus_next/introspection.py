@@ -3,7 +3,7 @@ from .signature import SignatureTree, SignatureType
 from .validators import assert_member_name_valid, assert_interface_name_valid
 from .errors import InvalidIntrospectionError
 
-from typing import List, Union
+from typing import List, Union, Optional, Any
 
 import xml.etree.ElementTree as ET
 
@@ -283,6 +283,39 @@ class Property:
         return element
 
 
+class IndexedList:
+    def __init__(self, list: Optional[List[Any]]):
+        self._list: dict[str, Any] = {i.name: i for i in list} if list is not None else {}
+
+    def __iter__(self):
+        return iter(self._list.values())
+
+    def __len__(self):
+        return len(self._list)
+
+    def __getattr__(self, name):
+        return self._list[name]
+
+    def __getitem__(self, key):
+        return list(self._list.values())[key]
+
+    def append(self, val):
+        name = val.name
+        self._list.update({name: val})
+
+
+class Methods(IndexedList):
+    pass
+
+
+class Signals(IndexedList):
+    pass
+
+
+class Properties(IndexedList):
+    pass
+
+
 class Interface:
     """A class that represents a DBus interface exported on on object path.
 
@@ -309,9 +342,30 @@ class Interface:
         assert_interface_name_valid(name)
 
         self.name = name
-        self.methods = methods if methods is not None else []
-        self.signals = signals if signals is not None else []
-        self.properties = properties if properties is not None else []
+        self._methods: Methods = Methods(methods)
+        self._signals: Signals = Signals(signals)
+        self._properties: Properties = Properties(properties)
+
+    @property
+    def methods(self) -> Methods:
+        return self._methods
+
+    @property
+    def signals(self) -> Signals:
+        return self._signals
+
+    @property
+    def properties(self) -> Properties:
+        return self._properties
+
+    def get_method(self, name: str) -> Method:
+        return getattr(self._methods, name)
+
+    def get_signal(self, name: str) -> Signal:
+        return getattr(self._signals, name)
+
+    def get_property(self, name: str) -> Property:
+        return getattr(self._properties, name)
 
     @staticmethod
     def from_xml(element: ET.Element) -> 'Interface':
@@ -358,6 +412,10 @@ class Interface:
         return element
 
 
+class Interfaces(IndexedList):
+    pass
+
+
 class Node:
     """A class that represents a node in an object path in introspection data.
 
@@ -388,10 +446,17 @@ class Node:
         if not is_root and not name:
             raise InvalidIntrospectionError('child nodes must have a "name" attribute')
 
-        self.interfaces = interfaces if interfaces is not None else []
+        self._interfaces: Interfaces = Interfaces(interfaces)
         self.nodes = []
         self.name = name
         self.is_root = is_root
+
+    @property
+    def interfaces(self) -> Interfaces:
+        return self._interfaces
+
+    def get_interface(self, name: str) -> Interface:
+        return getattr(self._interfaces, name)
 
     @staticmethod
     def from_xml(element: ET.Element, is_root: bool = False):

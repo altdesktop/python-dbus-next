@@ -15,7 +15,7 @@ import logging
 import xml.etree.ElementTree as ET
 import traceback
 
-from typing import Type, Callable, Optional, Union
+from typing import Type, Callable, Optional, Union, List
 
 
 class BaseMessageBus:
@@ -67,7 +67,7 @@ class BaseMessageBus:
         # high level client only)
         self._name_owners = {}
         # used for the high level service
-        self._path_exports = {}
+        self._path_exports: dict[str, List[ServiceInterface]] = {}
         self._bus_address = parse_address(bus_address) if bus_address else parse_address(
             get_bus_address(bus_type))
         # the bus implementations need this rule for the high level client to

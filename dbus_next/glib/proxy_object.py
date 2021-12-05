@@ -1,3 +1,4 @@
+from ..introspection import Method, Property
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
 from ..message import Message
@@ -108,11 +109,11 @@ class ProxyInterface(BaseProxyInterface):
     :class:`DBusError <dbus_next.DBusError>` will be raised with information
     about the error.
     """
-    def _add_method(self, intr_method):
+    def _call_method(self, intr_method: Method, margs, mflags=None, sync=False):
         in_len = len(intr_method.in_args)
         out_len = len(intr_method.out_args)
 
-        def method_fn(*args):
+        def method_fn(args):
             if len(args) != in_len + 1:
                 raise TypeError(
                     f'method {intr_method.name} expects {in_len} arguments and a callback (got {len(args)} args)'
@@ -143,7 +144,7 @@ class ProxyInterface(BaseProxyInterface):
                         signature=intr_method.in_signature,
                         body=list(args)), call_notify)
 
-        def method_fn_sync(*args):
+        def method_fn_sync(args):
             main = GLib.MainLoop()
             call_error = None
             call_body = None
@@ -155,7 +156,8 @@ class ProxyInterface(BaseProxyInterface):
                 call_body = body
                 main.quit()
 
-            method_fn(*args, callback)
+            args += (callback, )
+            method_fn(args)
 
             main.run()
 
@@ -169,13 +171,12 @@ class ProxyInterface(BaseProxyInterface):
             else:
                 return call_body
 
-        method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
-        method_name_sync = f'{method_name}_sync'
+        if sync:
+            return method_fn_sync(margs)
+        else:
+            return method_fn(margs)
 
-        setattr(self, method_name, method_fn)
-        setattr(self, method_name_sync, method_fn_sync)
-
-    def _add_property(self, intr_property):
+    def _get_property(self, intr_property: Property, sync=False):
         def property_getter(callback):
             def call_notify(msg, err):
                 if err:
@@ -225,6 +226,12 @@ class ProxyInterface(BaseProxyInterface):
                 raise reply_error
             return property_value
 
+        if sync:
+            return property_getter_sync()
+        else:
+            return property_getter()
+
+    def _set_property(self, intr_property: Property, val, sync=False):
         def property_setter(value, callback):
             def call_notify(msg, err):
                 if err:
@@ -263,11 +270,10 @@ class ProxyInterface(BaseProxyInterface):
                 raise reply_error
             return None
 
-        snake_case = super()._to_snake_case(intr_property.name)
-        setattr(self, f'get_{snake_case}', property_getter)
-        setattr(self, f'get_{snake_case}_sync', property_getter_sync)
-        setattr(self, f'set_{snake_case}', property_setter)
-        setattr(self, f'set_{snake_case}_sync', property_setter_sync)
+        if sync:
+            return property_setter_sync(val)
+        else:
+            return property_setter(val)
 
 
 class ProxyObject(BaseProxyObject):

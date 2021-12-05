@@ -1,3 +1,4 @@
+from ..introspection import Method, Property
 from ..proxy_object import BaseProxyObject, BaseProxyInterface
 from ..message_bus import BaseMessageBus
 from ..message import Message, MessageFlag
@@ -72,8 +73,8 @@ class ProxyInterface(BaseProxyInterface):
     If the service returns an error for a DBus call, a :class:`DBusError
     <dbus_next.DBusError>` will be raised with information about the error.
     """
-    def _add_method(self, intr_method):
-        async def method_fn(*args, flags=MessageFlag.NONE):
+    def _call_method(self, intr_method: Method, margs, mflags=MessageFlag.NONE, sync=False):
+        async def method_fn(args, flags=MessageFlag.NONE):
             input_body, unix_fds = replace_fds_with_idx(intr_method.in_signature, list(args))
 
             msg = await self.bus.call(
@@ -102,10 +103,9 @@ class ProxyInterface(BaseProxyInterface):
             else:
                 return body
 
-        method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
-        setattr(self, method_name, method_fn)
+        return method_fn(margs, flags=mflags)
 
-    def _add_property(self, intr_property):
+    def _get_property(self, intr_property: Property, sync=False):
         async def property_getter():
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
@@ -124,6 +124,9 @@ class ProxyInterface(BaseProxyInterface):
 
             return replace_idx_with_fds('v', msg.body, msg.unix_fds)[0].value
 
+        return property_getter()
+
+    def _set_property(self, intr_property: Property, val, sync=False):
         async def property_setter(val):
             variant = Variant(intr_property.signature, val)
 
@@ -141,9 +144,7 @@ class ProxyInterface(BaseProxyInterface):
 
             BaseProxyInterface._check_method_return(msg)
 
-        snake_case = BaseProxyInterface._to_snake_case(intr_property.name)
-        setattr(self, f'get_{snake_case}', property_getter)
-        setattr(self, f'set_{snake_case}', property_setter)
+        return property_setter(val)
 
 
 class ProxyObject(BaseProxyObject):

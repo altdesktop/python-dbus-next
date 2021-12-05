@@ -1,12 +1,13 @@
+from .introspection import Interface, Method, Signal, Property
 from .validators import assert_object_path_valid, assert_bus_name_valid
 from . import message_bus
 from .message import Message
-from .constants import MessageType, ErrorType
+from .constants import MessageType, ErrorType, MessageFlag
 from . import introspection as intr
 from .errors import DBusError, InterfaceNotFoundError
 from ._private.util import replace_idx_with_fds
 
-from typing import Type, Union, List, Coroutine
+from typing import Type, Union, List, Coroutine, Callable
 import logging
 import xml.etree.ElementTree as ET
 import inspect
@@ -39,17 +40,83 @@ class BaseProxyInterface:
     :ivar bus: The message bus this proxy interface is connected to.
     :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
     """
-    def __init__(self, bus_name, path, introspection, bus):
+    def __init__(self, bus_name: str, path: str, introspection: Interface,
+                 bus: 'message_bus.BaseMessageBus'):
 
-        self.bus_name = bus_name
-        self.path = path
-        self.introspection = introspection
-        self.bus = bus
-        self._signal_handlers = {}
+        self.bus_name: str = bus_name
+        self.path: str = path
+        self.introspection: Interface = introspection
+        self.bus: 'message_bus.BaseMessageBus' = bus
+        self._signal_handlers: dict[str, List[Callable]] = {}
         self._signal_match_rule = f"type='signal',sender={bus_name},interface={introspection.name},path={path}"
+
+    def __getattr__(self, name):
+        sync = False
+        if name.startswith('on_'):
+            signal_name = self._to_camel_case(name.split('on_', 1)[1])
+            signal = self.introspection.get_signal(signal_name)
+
+            def signal_on_wrapper(*args):
+                fn: Callable = args[0]
+                return self._call_on_signal(signal, fn)
+
+            return signal_on_wrapper
+        elif name.startswith('off_'):
+            signal_name = self._to_camel_case(name.split('off_', 1)[1])
+            signal = self.introspection.get_signal(signal_name)
+
+            def signal_off_wrapper(*args):
+                fn: Callable = args[0]
+                return self._call_off_signal(signal, fn)
+
+            return signal_off_wrapper
+        elif name.startswith('call_'):
+            method_str = name.split('call_', 1)[1]
+            if method_str.endswith('_sync'):
+                sync = True
+                method_str = method_str.rsplit('_sync', 1)[0]
+            method_name = self._to_camel_case(method_str)
+            method = self.introspection.get_method(method_name)
+
+            def method_wrapper(*args, **kwargs):
+                margs = args
+                flags = kwargs.get('flags', MessageFlag.NONE)
+                return self._call_method(method, margs, mflags=flags, sync=sync)
+
+            return method_wrapper
+        elif name.startswith('get_'):
+            property_str = name.split('get_', 1)[1]
+            if property_str.endswith('_sync'):
+                sync = True
+                property_str = property_str.rsplit('_sync', 1)[0]
+            property_name = self._to_camel_case(property_str)
+            property = self.introspection.get_property(property_name)
+
+            def property_get_wrapper():
+                return self._get_property(property, sync=sync)
+
+            return property_get_wrapper
+        elif name.startswith('set_'):
+            property_str = name.split('set_', 1)[1]
+            if property_str.endswith('_sync'):
+                sync = True
+                property_str = property_str.rsplit('_sync', 1)[0]
+            property_name = self._to_camel_case(property_str)
+            property = self.introspection.get_property(property_name)
+
+            def property_set_wrapper(*args):
+                val = args[0]
+                return self._set_property(property, val, sync=sync)
+
+            return property_set_wrapper
+        raise AttributeError(name)
 
     _underscorer1 = re.compile(r'(.)([A-Z][a-z]+)')
     _underscorer2 = re.compile(r'([a-z0-9])([A-Z])')
+
+    @staticmethod
+    def _to_camel_case(member):
+        return ''.join(word.title() for word in member.split('_'))
 
     @staticmethod
     def _to_snake_case(member):
@@ -66,10 +133,13 @@ class BaseProxyInterface:
             raise DBusError(ErrorType.CLIENT_ERROR,
                             f'method call returned unexpected signature: "{msg.signature}"', msg)
 
-    def _add_method(self, intr_method):
+    def _call_method(self, intr_method: Method, args, mflags=MessageFlag.NONE, sync=False):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
-    def _add_property(self, intr_property):
+    def _get_property(self, intr_property: Property, sync=False):
+        raise NotImplementedError('this must be implemented in the inheriting class')
+
+    def _set_property(self, intr_property: Property, val, sync=False):
         raise NotImplementedError('this must be implemented in the inheriting class')
 
     def _message_handler(self, msg):
@@ -102,8 +172,8 @@ class BaseProxyInterface:
             if isinstance(cb_result, Coroutine):
                 asyncio.create_task(cb_result)
 
-    def _add_signal(self, intr_signal, interface):
-        def on_signal_fn(fn):
+    def _call_on_signal(self, intr_signal: Signal, fn):
+        def on_signal_fn(fn: Callable):
             fn_signature = inspect.signature(fn)
             if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
                 raise TypeError(
@@ -118,7 +188,10 @@ class BaseProxyInterface:
 
             self._signal_handlers[intr_signal.name].append(fn)
 
-        def off_signal_fn(fn):
+        return on_signal_fn(fn)
+
+    def _call_off_signal(self, intr_signal: Signal, fn):
+        def off_signal_fn(fn: Callable):
             try:
                 i = self._signal_handlers[intr_signal.name].index(fn)
                 del self._signal_handlers[intr_signal.name][i]
@@ -131,9 +204,7 @@ class BaseProxyInterface:
                 self.bus._remove_match_rule(self._signal_match_rule)
                 self.bus.remove_message_handler(self._message_handler)
 
-        snake_case = BaseProxyInterface._to_snake_case(intr_signal.name)
-        setattr(interface, f'on_{snake_case}', on_signal_fn)
-        setattr(interface, f'off_{snake_case}', off_signal_fn)
+        return off_signal_fn(fn)
 
 
 class BaseProxyObject:
@@ -213,19 +284,11 @@ class BaseProxyObject:
         if name in self._interfaces:
             return self._interfaces[name]
 
-        try:
-            intr_interface = next(i for i in self.introspection.interfaces if i.name == name)
-        except StopIteration:
+        intr_interface = self.introspection.get_interface(name)
+        if intr_interface is None:
             raise InterfaceNotFoundError(f'interface not found on this object: {name}')
 
         interface = self.ProxyInterface(self.bus_name, self.path, intr_interface, self.bus)
-
-        for intr_method in intr_interface.methods:
-            interface._add_method(intr_method)
-        for intr_property in intr_interface.properties:
-            interface._add_property(intr_property)
-        for intr_signal in intr_interface.signals:
-            interface._add_signal(intr_signal, interface)
 
         def get_owner_notify(msg, err):
             if err:
