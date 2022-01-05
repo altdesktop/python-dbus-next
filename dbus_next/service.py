@@ -6,32 +6,47 @@ from ._private.util import signature_contains_type, replace_fds_with_idx, replac
 
 from functools import wraps
 import inspect
-from typing import no_type_check_decorator, Dict, List, Any
+from typing import no_type_check_decorator, Dict, List, Any, Optional
 import copy
 import asyncio
 
 
 class _Method:
-    def __init__(self, fn, name, disabled=False):
-        in_signature = ''
-        out_signature = ''
+    def __init__(self,
+                 fn,
+                 name,
+                 disabled=False,
+                 in_signature: Optional[str] = None,
+                 out_signature: Optional[str] = None):
 
         inspection = inspect.signature(fn)
 
-        in_args = []
-        for i, param in enumerate(inspection.parameters.values()):
-            if i == 0:
-                # first is self
-                continue
-            annotation = parse_annotation(param.annotation)
-            if not annotation:
-                raise ValueError(
-                    'method parameters must specify the dbus type string as an annotation')
-            in_args.append(intr.Arg(annotation, intr.ArgDirection.IN, param.name))
-            in_signature += annotation
+        if in_signature is None:
+            in_signature = ''
+            in_args = []
+            for i, param in enumerate(inspection.parameters.values()):
+                if i == 0:
+                    # first is self
+                    continue
+                annotation = parse_annotation(param.annotation)
+                if not annotation:
+                    raise ValueError(
+                        'method parameters must specify the dbus type string as an annotation')
+                in_args.append(intr.Arg(annotation, intr.ArgDirection.IN, param.name))
+                in_signature += annotation
+        else:
+            name_iter = iter(inspection.parameters.keys())
+            next(name_iter)  # skip self parameter
+            in_args = [
+                intr.Arg(type_, intr.ArgDirection.IN, name)
+                for name, type_ in zip(name_iter,
+                                       SignatureTree._get(in_signature).types)
+            ]
+
+        if out_signature is None:
+            out_signature = parse_annotation(inspection.return_annotation)
 
         out_args = []
-        out_signature = parse_annotation(inspection.return_annotation)
         if out_signature:
             for type_ in SignatureTree._get(out_signature).types:
                 out_args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -41,12 +56,15 @@ class _Method:
         self.disabled = disabled
         self.introspection = intr.Method(name, in_args, out_args)
         self.in_signature = in_signature
-        self.out_signature = out_signature
         self.in_signature_tree = SignatureTree._get(in_signature)
+        self.out_signature = out_signature
         self.out_signature_tree = SignatureTree._get(out_signature)
 
 
-def method(name: str = None, disabled: bool = False):
+def method(name: str = None,
+           disabled: bool = False,
+           in_signature: Optional[str] = None,
+           out_signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus service method.
 
     The parameters and return value must each be annotated with a signature
@@ -91,7 +109,12 @@ def method(name: str = None, disabled: bool = False):
             fn(*args, **kwargs)
 
         fn_name = name if name else fn.__name__
-        wrapped.__dict__['__DBUS_METHOD'] = _Method(fn, fn_name, disabled=disabled)
+        _method = _Method(fn,
+                          fn_name,
+                          disabled=disabled,
+                          in_signature=in_signature,
+                          out_signature=out_signature)
+        wrapped.__dict__['__DBUS_METHOD'] = _method
 
         return wrapped
 

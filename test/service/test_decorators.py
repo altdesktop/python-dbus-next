@@ -1,6 +1,8 @@
 from dbus_next import PropertyAccess, introspection as intr
 from dbus_next.service import method, signal, dbus_property, ServiceInterface
 
+from typing import List
+
 
 class ExampleInterface(ServiceInterface):
     def __init__(self):
@@ -16,6 +18,10 @@ class ExampleInterface(ServiceInterface):
     @method(name='renamed_method', disabled=True)
     def another_method(self, eight: 'o', six: 't'):
         pass
+
+    @method(in_signature="sasu", out_signature="i")
+    def a_third_method(self, one: str, two: List[str], three) -> int:
+        return 42
 
     @signal()
     def some_signal(self) -> 'as':
@@ -56,16 +62,25 @@ def test_method_decorator():
     methods = ServiceInterface._get_methods(interface)
     signals = ServiceInterface._get_signals(interface)
 
-    assert len(methods) == 2
+    assert len(methods) == 3
 
     method = methods[0]
+    assert method.name == 'a_third_method'
+    assert method.in_signature == 'sasu'
+    assert method.out_signature == 'i'
+    assert not method.disabled
+    assert type(method.introspection) is intr.Method
+    assert len(method.introspection.in_args) == 3
+    assert len(method.introspection.out_args) == 1
+
+    method = methods[1]
     assert method.name == 'renamed_method'
     assert method.in_signature == 'ot'
     assert method.out_signature == ''
     assert method.disabled
     assert type(method.introspection) is intr.Method
 
-    method = methods[1]
+    method = methods[2]
     assert method.name == 'some_method'
     assert method.in_signature == 'ss'
     assert method.out_signature == 's'
@@ -142,7 +157,7 @@ def test_interface_introspection():
     signals = xml.findall('signal')
     properties = xml.findall('property')
 
-    assert len(xml) == 4
-    assert len(methods) == 1
+    assert len(xml) == 5
+    assert len(methods) == 2
     assert len(signals) == 1
     assert len(properties) == 2
