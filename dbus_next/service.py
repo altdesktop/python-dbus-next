@@ -122,17 +122,16 @@ def method(name: str = None,
 
 
 class _Signal:
-    def __init__(self, fn, name, disabled=False):
+    def __init__(self, fn, name, disabled=False, signature: Optional[str] = None):
         inspection = inspect.signature(fn)
 
         args = []
-        signature = ''
         signature_tree = None
 
-        return_annotation = parse_annotation(inspection.return_annotation)
+        if signature is None:
+            signature = parse_annotation(inspection.return_annotation)
 
-        if return_annotation:
-            signature = return_annotation
+        if signature:
             signature_tree = SignatureTree._get(signature)
             for type_ in signature_tree.types:
                 args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -147,7 +146,7 @@ class _Signal:
         self.introspection = intr.Signal(self.name, args)
 
 
-def signal(name: str = None, disabled: bool = False):
+def signal(name: str = None, disabled: bool = False, signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus signal.
 
     The signal is broadcast on the bus when the decorated class method is
@@ -185,7 +184,7 @@ def signal(name: str = None, disabled: bool = False):
     @no_type_check_decorator
     def decorator(fn):
         fn_name = name if name else fn.__name__
-        signal = _Signal(fn, fn_name, disabled)
+        signal = _Signal(fn, fn_name, disabled, signature)
 
         @wraps(fn)
         def wrapped(self, *args, **kwargs):

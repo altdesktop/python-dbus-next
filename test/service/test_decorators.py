@@ -62,6 +62,10 @@ class ExampleInterface(ServiceInterface):
     def foo_prop(self, val: int):
         self._foo_prop = val
 
+    @signal(signature="as")
+    def foo_signal(self) -> List[str]:
+        return ['result']
+
 
 def test_method_decorator():
     interface = ExampleInterface()
@@ -96,7 +100,7 @@ def test_method_decorator():
     assert not method.disabled
     assert type(method.introspection) is intr.Method
 
-    assert len(signals) == 2
+    assert len(signals) == 3
 
     signal = signals[0]
     assert signal.name == 'renamed_signal'
@@ -105,6 +109,12 @@ def test_method_decorator():
     assert type(signal.introspection) is intr.Signal
 
     signal = signals[1]
+    assert signal.name == 'foo_signal'
+    assert signal.signature == 'as'
+    assert not signal.disabled
+    assert type(signal.introspection) is intr.Signal
+
+    signal = signals[2]
     assert signal.name == 'some_signal'
     assert signal.signature == 'as'
     assert not signal.disabled
@@ -177,7 +187,7 @@ def test_interface_introspection():
     signals = xml.findall('signal')
     properties = xml.findall('property')
 
-    assert len(xml) == 6
+    assert len(xml) == 7
     assert len(methods) == 2
-    assert len(signals) == 1
+    assert len(signals) == 2
     assert len(properties) == 3
