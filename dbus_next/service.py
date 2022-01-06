@@ -84,6 +84,10 @@ def method(name: str = None,
     :type name: str
     :param disabled: If set to true, the method will not be visible to clients.
     :type disabled: bool
+    :param in_signature: If set, this signature string will be used and no parsing of method paramter type annotations will be done.
+    :type in_signature: str
+    :param out_signature: If set, this signature string will be used and no parsing of the method return annotation will be done.
+    :type out_signature: str
 
     :example:
 
@@ -163,6 +167,8 @@ def signal(name: str = None, disabled: bool = False, signature: Optional[str] = 
     :type name: str
     :param disabled: If set to true, the signal will not be visible to clients.
     :type disabled: bool
+    :param signature: If set, this signature string will be used and no parsing of method type annotations will be done.
+    :type signature: str
 
     :example:
 
@@ -314,6 +320,8 @@ def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
     :param disabled: If set to true, the property will not be visible to
         clients.
     :type disabled: bool
+    :param signature: If set, this signature string will be used and no parsing of method type annotations will be done.
+    :type signature: str
 
     :example:
 
