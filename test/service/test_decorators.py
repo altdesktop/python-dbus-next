@@ -10,6 +10,7 @@ class ExampleInterface(ServiceInterface):
         self._some_prop = 55
         self._another_prop = 101
         self._weird_prop = 500
+        self._foo_prop = 17
 
     @method()
     def some_method(self, one: 's', two: 's') -> 's':
@@ -18,10 +19,6 @@ class ExampleInterface(ServiceInterface):
     @method(name='renamed_method', disabled=True)
     def another_method(self, eight: 'o', six: 't'):
         pass
-
-    @method(in_signature="sasu", out_signature="i")
-    def a_third_method(self, one: str, two: List[str], three) -> int:
-        return 42
 
     @signal()
     def some_signal(self) -> 'as':
@@ -52,6 +49,18 @@ class ExampleInterface(ServiceInterface):
     @weird_prop.setter
     def setter_for_weird_prop(self, val: 't'):
         self._weird_prop = val
+
+    @method(in_signature="sasu", out_signature="i")
+    def a_third_method(self, one: str, two: List[str], three) -> int:
+        return 42
+
+    @dbus_property(signature='u')
+    def foo_prop(self) -> int:
+        return self._foo_prop
+
+    @foo_prop.setter
+    def foo_prop(self, val: int):
+        self._foo_prop = val
 
 
 def test_method_decorator():
@@ -101,7 +110,7 @@ def test_method_decorator():
     assert not signal.disabled
     assert type(signal.introspection) is intr.Signal
 
-    assert len(properties) == 3
+    assert len(properties) == 4
 
     renamed_readonly_prop = properties[0]
     assert renamed_readonly_prop.name == 'renamed_readonly_property'
@@ -110,7 +119,18 @@ def test_method_decorator():
     assert renamed_readonly_prop.disabled
     assert type(renamed_readonly_prop.introspection) is intr.Property
 
-    weird_prop = properties[1]
+    foo_prop = properties[1]
+    assert foo_prop.name == 'foo_prop'
+    assert foo_prop.access == PropertyAccess.READWRITE
+    assert foo_prop.signature == 'u'
+    assert not foo_prop.disabled
+    assert foo_prop.prop_getter is not None
+    assert foo_prop.prop_getter.__name__ == 'foo_prop'
+    assert foo_prop.prop_setter is not None
+    assert foo_prop.prop_setter.__name__ == 'foo_prop'
+    assert type(foo_prop.introspection) is intr.Property
+
+    weird_prop = properties[2]
     assert weird_prop.name == 'weird_prop'
     assert weird_prop.access == PropertyAccess.READWRITE
     assert weird_prop.signature == 't'
@@ -121,7 +141,7 @@ def test_method_decorator():
     assert weird_prop.prop_setter.__name__ == 'setter_for_weird_prop'
     assert type(weird_prop.introspection) is intr.Property
 
-    prop = properties[2]
+    prop = properties[3]
     assert prop.name == 'some_prop'
     assert prop.access == PropertyAccess.READWRITE
     assert prop.signature == 'u'
@@ -157,7 +177,7 @@ def test_interface_introspection():
     signals = xml.findall('signal')
     properties = xml.findall('property')
 
-    assert len(xml) == 5
+    assert len(xml) == 6
     assert len(methods) == 2
     assert len(signals) == 1
-    assert len(properties) == 2
+    assert len(properties) == 3

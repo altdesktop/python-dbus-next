@@ -228,18 +228,26 @@ class _Property(property):
         self.__dict__['__DBUS_PROPERTY'] = True
 
     def __init__(self, fn, *args, **kwargs):
+        if args:
+            # this is a call to prop.setter - all we need to do call super
+            return super().__init__(fn, *args, **kwargs)
+
         self.prop_getter = fn
         self.prop_setter = None
 
         inspection = inspect.signature(fn)
+
         if len(inspection.parameters) != 1:
             raise ValueError('the property must only have the "self" input parameter')
 
-        return_annotation = parse_annotation(inspection.return_annotation)
+        return_annotation = kwargs.pop('signature', None)
+        if return_annotation is None:
+            return_annotation = parse_annotation(inspection.return_annotation)
 
         if not return_annotation:
             raise ValueError(
-                'the property must specify the dbus type string as a return annotation string')
+                'the property must specify the dbus type string as a return annotation string or with the signature option'
+            )
 
         self.signature = return_annotation
         tree = SignatureTree._get(return_annotation)
@@ -249,10 +257,9 @@ class _Property(property):
 
         self.type = tree.types[0]
 
-        if 'options' in kwargs:
-            options = kwargs['options']
+        options = kwargs.pop('options', None)
+        if options is not None:
             self.set_options(options)
-            del kwargs['options']
 
         super().__init__(fn, *args, **kwargs)
 
@@ -260,15 +267,30 @@ class _Property(property):
         # XXX The setter decorator seems to be recreating the class in the list
         # of class members and clobbering the options so we need to reset them.
         # Why does it do that?
+        #
+        #     The default implementation of setter basically looks like this:
+        #
+        #           def setter(self, fset):
+        #               return type(self)(self.fget, fset, self.fdel)
+        #
+        #     That is it creates a new instance, with the new setter, carrying
+        #     the getter and deleter over from the the existing instance.
+        #
+        #     In this case, we need to carry all the private properties from the
+        #     old instance and reset the options on the new instance.
         result = super().setter(fn, **kwargs)
+        result.prop_getter = self.prop_getter
         result.prop_setter = fn
+        result.signature = self.signature
+        result.type = self.type
         result.set_options(self.options)
         return result
 
 
 def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
                   name: str = None,
-                  disabled: bool = False):
+                  disabled: bool = False,
+                  signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus property.
 
     The class method must be a Python getter method with a return annotation
@@ -316,7 +338,7 @@ def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
     @no_type_check_decorator
     def decorator(fn):
         options = {'name': name, 'access': access, 'disabled': disabled}
-        return _Property(fn, options=options)
+        return _Property(fn, options=options, signature=signature)
 
     return decorator
 
