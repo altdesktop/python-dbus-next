@@ -147,3 +147,15 @@ def test_sending_signals_between_buses():
     assert signal.member == 'SomeSignal'
     assert signal.signature == 's'
     assert signal.body == ['a signal']
+
+
+@pytest.mark.skipif(not has_gi, reason=skip_reason_no_gi)
+def test_bus_context_manager():
+    with MessageBus() as bus:
+        assert bus.connected
+        bus.call_sync(
+            Message(destination='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    interface='org.freedesktop.DBus',
+                    member='Ping'))
+    assert not bus.connected

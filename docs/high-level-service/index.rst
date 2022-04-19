@@ -78,16 +78,14 @@ If any file descriptors are sent or received (DBus type ``h``), the variable ref
             self.emit_properties_changed({'Bar': self._bar})
 
     async def main():
-        bus = await MessageBus().connect()
-        interface = ExampleInterface()
-        bus.export('/com/example/sample0', interface)
-        await bus.request_name('com.example.name')
+        async with MessageBus() as bus:
+            interface = ExampleInterface()
+            bus.export('/com/example/sample0', interface)
+            await bus.request_name('com.example.name')
 
-        # emit the changed signal after two seconds.
-        await asyncio.sleep(2)
+            # emit the changed signal after two seconds.
+            await asyncio.sleep(2)
 
-        interface.Changed()
-
-        await bus.wait_for_disconnect()
+            interface.Changed()
 
     asyncio.get_event_loop().run_until_complete(main())
