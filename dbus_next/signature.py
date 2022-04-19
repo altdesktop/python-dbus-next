@@ -2,7 +2,7 @@ from .validators import is_object_path_valid
 from .errors import InvalidSignatureError, SignatureBodyMismatchError
 
 from functools import lru_cache
-from typing import Any, List, Union
+from typing import Any, List, Mapping, Sequence, Union
 
 
 class SignatureType:
@@ -209,10 +209,10 @@ class SignatureType:
         child_type = self.children[0]
 
         if child_type.token == '{':
-            if not isinstance(body, dict):
+            if not isinstance(body, Mapping):
                 raise SignatureBodyMismatchError(
-                    f'DBus ARRAY type "a" with DICT_ENTRY child must be Python type "dict", got {type(body)}'
-                )
+                    'DBus ARRAY type "a" with DICT_ENTRY child must be Python '
+                    f'type "Mapping", e.g. "dict", got {type(body)}')
             for key, value in body.items():
                 child_type.children[0].verify(key)
                 child_type.children[1].verify(value)
@@ -223,17 +223,18 @@ class SignatureType:
                 )
                 # no need to verify children
         else:
-            if not isinstance(body, list):
+            if not isinstance(body, Sequence):
                 raise SignatureBodyMismatchError(
-                    f'DBus ARRAY type "a" must be Python type "list", got {type(body)}')
+                    f'DBus ARRAY type "a" must be Python type "Sequence", e.g. "list", got {type(body)}'
+                )
             for member in body:
                 child_type.verify(member)
 
     def _verify_struct(self, body):
-        # TODO allow tuples
-        if not isinstance(body, list):
+        if not isinstance(body, Sequence):
             raise SignatureBodyMismatchError(
-                f'DBus STRUCT type "(" must be Python type "list", got {type(body)}')
+                f'DBus STRUCT type "(" must be Python type "Sequence", e.g. "list", got {type(body)}'
+            )
 
         if len(body) != len(self.children):
             raise SignatureBodyMismatchError(
@@ -335,8 +336,9 @@ class SignatureTree:
         :raises:
             :class:`SignatureBodyMismatchError` if the signature does not match the body.
         """
-        if not isinstance(body, list):
-            raise SignatureBodyMismatchError(f'The body must be a list (got {type(body)})')
+        if not isinstance(body, Sequence):
+            raise SignatureBodyMismatchError(
+                f'The body must be a "Sequence", e.g. "list" (got {type(body)})')
         if len(body) != len(self.types):
             raise SignatureBodyMismatchError(
                 f'The body has the wrong number of types (got {len(body)}, expected {len(self.types)})'
