@@ -84,7 +84,7 @@ For more information, see the [overview for the high-level service](https://pyth
 
 ```python
 from dbus_next.service import ServiceInterface, method, dbus_property, signal, Variant
-from dbus_next.aio MessageBus
+from dbus_next.aio import MessageBus
 
 import asyncio
 
