@@ -94,6 +94,8 @@ class AuthAnnonymous(Authenticator):
     def _receive_line(self, line: str) -> str:
         response, args = _AuthResponse.parse(line)
 
+        if response == _AuthResponse.DATA:
+            return 'DATA'
         if response != _AuthResponse.OK:
             raise AuthError(f'authentication failed: {response.value}: {args}')
 
