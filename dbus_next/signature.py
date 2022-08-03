@@ -1,7 +1,9 @@
 from .validators import is_object_path_valid
 from .errors import InvalidSignatureError, SignatureBodyMismatchError
 
+from functools import lru_cache
 from typing import Any, List, Union
+
 
 
 class SignatureType:
@@ -20,9 +22,9 @@ class SignatureType:
     """
     _tokens = 'ybnqiuxtdsogavh({'
 
-    def __init__(self, token):
+    def __init__(self, token: str) -> None:
         self.token = token
-        self.children = []
+        self.children: List[SignatureType] = []
         self._signature = None
 
     def __eq__(self, other):
@@ -257,43 +259,32 @@ class SignatureType:
         """
         if body is None:
             raise SignatureBodyMismatchError('Cannot serialize Python type "None"')
-        elif self.token == 'y':
-            self._verify_byte(body)
-        elif self.token == 'b':
-            self._verify_boolean(body)
-        elif self.token == 'n':
-            self._verify_int16(body)
-        elif self.token == 'q':
-            self._verify_uint16(body)
-        elif self.token == 'i':
-            self._verify_int32(body)
-        elif self.token == 'u':
-            self._verify_uint32(body)
-        elif self.token == 'x':
-            self._verify_int64(body)
-        elif self.token == 't':
-            self._verify_uint64(body)
-        elif self.token == 'd':
-            self._verify_double(body)
-        elif self.token == 'h':
-            self._verify_unix_fd(body)
-        elif self.token == 'o':
-            self._verify_object_path(body)
-        elif self.token == 's':
-            self._verify_string(body)
-        elif self.token == 'g':
-            self._verify_signature(body)
-        elif self.token == 'a':
-            self._verify_array(body)
-        elif self.token == '(':
-            self._verify_struct(body)
-        elif self.token == 'v':
-            self._verify_variant(body)
+        validator = self.validators.get(self.token)
+        if validator:
+            validator(self, body)
         else:
             raise Exception(f'cannot verify type with token {self.token}')
 
         return True
 
+    validators = {
+        "y": _verify_byte,
+        "b": _verify_boolean,
+        "n": _verify_int16,
+        "q": _verify_uint16,
+        "i": _verify_int32,
+        "u": _verify_uint32,
+        "x": _verify_int64,
+        "t": _verify_uint64,
+        "d": _verify_double,
+        "h": _verify_uint32,
+        "o": _verify_string,
+        "s": _verify_string,
+        "g": _verify_signature,
+        "a": _verify_array,
+        "(": _verify_struct,
+        "v": _verify_variant,
+    }
 
 class SignatureTree:
     """A class that represents a signature as a tree structure for conveniently
@@ -311,19 +302,15 @@ class SignatureTree:
         :class:`InvalidSignatureError` if the given signature is not valid.
     """
 
-    _cache = {}
-
     @staticmethod
-    def _get(signature: str = ''):
-        if signature in SignatureTree._cache:
-            return SignatureTree._cache[signature]
-        SignatureTree._cache[signature] = SignatureTree(signature)
-        return SignatureTree._cache[signature]
+    @lru_cache(maxsize=None)
+    def _get(signature: str = '') -> "SignatureTree":
+        return SignatureTree(signature)
 
     def __init__(self, signature: str = ''):
         self.signature = signature
 
-        self.types = []
+        self.types: List[SignatureType] = []
 
         if len(signature) > 0xff:
             raise InvalidSignatureError('A signature must be less than 256 characters')
@@ -381,7 +368,7 @@ class Variant:
         :class:`InvalidSignatureError` if the signature is not valid.
         :class:`SignatureBodyMismatchError` if the signature does not match the body.
     """
-    def __init__(self, signature: Union[str, SignatureTree, SignatureType], value: Any):
+    def __init__(self, signature: Union[str, SignatureTree, SignatureType], value: Any, verify: bool = True):
         signature_str = ''
         signature_tree = None
         signature_type = None
@@ -397,12 +384,13 @@ class Variant:
             raise TypeError('signature must be a SignatureTree, SignatureType, or a string')
 
         if signature_tree:
-            if len(signature_tree.types) != 1:
+            if verify and len(signature_tree.types) != 1:
                 raise ValueError('variants must have a signature for a single complete type')
             signature_str = signature_tree.signature
             signature_type = signature_tree.types[0]
 
-        signature_type.verify(value)
+        if verify:
+            signature_type.verify(value)
 
         self.type = signature_type
         self.signature = signature_str

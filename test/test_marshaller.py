@@ -1,9 +1,12 @@
+from typing import Any
 from dbus_next._private.unmarshaller import Unmarshaller
-from dbus_next import Message, Variant, SignatureTree
+from dbus_next import Message, Variant, SignatureTree, MessageType, MessageFlag
 
 import json
 import os
 import io
+
+import pytest
 
 
 def print_buf(buf):
@@ -19,6 +22,17 @@ def print_buf(buf):
 # these messages have been verified with another library
 table = json.load(open(os.path.dirname(__file__) + '/data/messages.json'))
 
+# these have unix_fds so we only test with unmarshalling
+bluez_table = json.load(open(os.path.dirname(__file__) + '/data/bluez_messages.json'))
+
+def json_to_message(message: dict[str, Any]) -> Message:
+    copy = dict(message)
+    if "message_type" in copy:
+        copy['message_type'] = MessageType(copy['message_type'])
+    if "flags" in copy:
+        copy['flags'] = MessageFlag(copy['flags'])
+
+    return Message(**copy)
 
 # variants are an object in the json
 def replace_variants(type_, item):
@@ -54,7 +68,7 @@ def json_dump(what):
 
 def test_marshalling_with_table():
     for item in table:
-        message = Message(**item['message'])
+        message = json_to_message(item['message'])
 
         body = []
         for i, type_ in enumerate(message.signature_tree.types):
@@ -77,8 +91,9 @@ def test_marshalling_with_table():
         assert buf == data
 
 
-def test_unmarshalling_with_table():
-    for item in table:
+@pytest.mark.parametrize('unmarshall_table', (table, bluez_table))
+def test_unmarshalling_with_table(unmarshall_table):
+    for item in unmarshall_table:
 
         stream = io.BytesIO(bytes.fromhex(item['data']))
         unmarshaller = Unmarshaller(stream)
@@ -89,7 +104,7 @@ def test_unmarshalling_with_table():
             print(json_dump(item['message']))
             raise e
 
-        message = Message(**item['message'])
+        message = json_to_message(item['message'])
 
         body = []
         for i, type_ in enumerate(message.signature_tree.types):
