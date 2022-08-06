@@ -98,6 +98,11 @@ class Unmarshaller:
         self.sock = sock
         self.message = None
         self.readers = None
+        self.body_len: int | None = None
+        self.serial: int | None = None
+        self.header_len: int | None = None
+        self.message_type: MessageType | None = None
+        self.flag: MessageFlag | None = None
 
     def read_sock(self, length: int) -> bytes:
         """reads from the socket, storing any fds sent and handling errors
@@ -121,17 +126,18 @@ class Unmarshaller:
 
         return msg
 
-    def read(self, missing_bytes: int) -> None:
+    def read(self, to_offset: int) -> None:
         """
-        Read from underlying socket into buffer and advance offset accordingly.
+        Read from underlying socket into buffer.
 
-        :arg n:
-            Number of bytes to read. If not enough bytes are available in the
+        :arg to_offset:
+            The offset to read to. If not enough bytes are available in the
             buffer, read more from it.
 
         :returns:
             None
         """
+        missing_bytes = to_offset - (len(self.buf) - self.offset)
         if self.sock is None:
             data = self.stream.read(missing_bytes)
         else:
@@ -231,14 +237,15 @@ class Unmarshaller:
             headers[HEADER_NAME_MAP[field_0]] = self.read_argument(tree.types[0])
         return headers
 
-    def _unmarshall(self):
+    def _read_header(self):
+        """Read the header of the message."""
         # Signature is of the header is
         # BYTE, BYTE, BYTE, BYTE, UINT32, UINT32, ARRAY of STRUCT of (BYTE,VARIANT)
         self.read(HEADER_SIGNATURE_SIZE)
         buffer = self.buf
         endian = buffer[0]
-        message_type = buffer[1]
-        flags = buffer[2]
+        self.message_type = MESSAGE_TYPE_MAP[buffer[1]]
+        self.flag = MESSAGE_FLAG_MAP[buffer[2]]
         protocol_version = buffer[3]
 
         if endian != LITTLE_ENDIAN and endian != BIG_ENDIAN:
@@ -250,23 +257,26 @@ class Unmarshaller:
                 f"got unknown protocol version: {protocol_version}"
             )
 
-        body_len, serial, header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
-        msg_len = header_len + (-header_len & 7) + body_len  # align 8
+        self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
+        self.msg_len = self.header_len + (-self.header_len & 7) + self.body_len  # align 8
         if (sys.byteorder == "little" and endian == LITTLE_ENDIAN) or (
             sys.byteorder == "big" and endian == BIG_ENDIAN
         ):
             self.can_cast = True
         self.readers = self._readers_by_type[endian]
-        self.read(msg_len)
+
+    def _read_body(self):
+        """Read the body of the message."""
+        self.read(self.msg_len)
         self.view = memoryview(self.buf)
 
         self.offset = HEADER_ARRAY_OF_STRUCT_SIGNATURE_POSITION
-        header_fields = self.header_fields(header_len)
+        header_fields = self.header_fields(self.header_len)
         self.offset += -self.offset & 7  # align 8
 
         tree = SignatureTree._get(header_fields.get(HeaderField.SIGNATURE.name, ""))
 
-        if body_len:
+        if self.body_len:
             body = [self.read_argument(type_) for type_ in tree.types]
         else:
             body = []
@@ -276,19 +286,23 @@ class Unmarshaller:
             path=header_fields.get(HEADER_PATH),
             interface=header_fields.get(HEADER_INTERFACE),
             member=header_fields.get(HEADER_MEMBER),
-            message_type=MESSAGE_TYPE_MAP[message_type],
-            flags=MESSAGE_FLAG_MAP[flags],
+            message_type=self.message_type,
+            flags=self.flag,
             error_name=header_fields.get(HEADER_ERROR_NAME),
             reply_serial=header_fields.get(HEADER_REPLY_SERIAL),
             sender=header_fields.get(HEADER_SENDER),
             unix_fds=self.unix_fds,
             signature=tree.signature,
             body=body,
-            serial=serial,
+            serial=self.serial,
         )
 
     def unmarshall(self):
-        self._unmarshall()
+        """Unmarshall the message."""
+        with contextlib.suppress(MarshallerStreamEndError):
+            if not self.message_type:
+                self._read_header()
+            self._read_body()
         return self.message
 
     _complex_parsers: Dict[
