@@ -12,7 +12,6 @@ from ..signature import SignatureTree, SignatureType, Variant
 from ..errors import InvalidMessageError
 
 import array
-import contextlib
 import io
 import socket
 import sys
@@ -126,18 +125,20 @@ class Unmarshaller:
 
         return msg
 
-    def read(self, to_offset: int) -> None:
+    def read_to_offset(self, offset: int) -> None:
         """
         Read from underlying socket into buffer.
 
-        :arg to_offset:
+        Raises MarshallerStreamEndError if there is not enough data to be read.
+
+        :arg offset:
             The offset to read to. If not enough bytes are available in the
             buffer, read more from it.
 
         :returns:
             None
         """
-        missing_bytes = to_offset - (len(self.buf) - self.offset)
+        missing_bytes = offset - (len(self.buf) - self.offset)
         if self.sock is None:
             data = self.stream.read(missing_bytes)
         else:
@@ -146,9 +147,9 @@ class Unmarshaller:
             raise EOFError()
         if data is None:
             raise MarshallerStreamEndError()
+        self.buf.extend(data)
         if len(data) != missing_bytes:
             raise MarshallerStreamEndError()
-        self.buf.extend(data)
 
     def read_boolean(self, _=None):
         return bool(self.read_argument(UINT32_SIGNATURE))
@@ -241,7 +242,7 @@ class Unmarshaller:
         """Read the header of the message."""
         # Signature is of the header is
         # BYTE, BYTE, BYTE, BYTE, UINT32, UINT32, ARRAY of STRUCT of (BYTE,VARIANT)
-        self.read(HEADER_SIGNATURE_SIZE)
+        self.read_to_offset(HEADER_SIGNATURE_SIZE)
         buffer = self.buf
         endian = buffer[0]
         self.message_type = MESSAGE_TYPE_MAP[buffer[1]]
@@ -257,8 +258,12 @@ class Unmarshaller:
                 f"got unknown protocol version: {protocol_version}"
             )
 
-        self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
-        self.msg_len = self.header_len + (-self.header_len & 7) + self.body_len  # align 8
+        self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[
+            endian
+        ].unpack_from(buffer, 4)
+        self.msg_len = (
+            self.header_len + (-self.header_len & 7) + self.body_len
+        )  # align 8
         if (sys.byteorder == "little" and endian == LITTLE_ENDIAN) or (
             sys.byteorder == "big" and endian == BIG_ENDIAN
         ):
@@ -267,20 +272,12 @@ class Unmarshaller:
 
     def _read_body(self):
         """Read the body of the message."""
-        self.read(self.msg_len)
+        self.read_to_offset(HEADER_SIGNATURE_SIZE + self.msg_len)
         self.view = memoryview(self.buf)
-
         self.offset = HEADER_ARRAY_OF_STRUCT_SIGNATURE_POSITION
         header_fields = self.header_fields(self.header_len)
         self.offset += -self.offset & 7  # align 8
-
         tree = SignatureTree._get(header_fields.get(HeaderField.SIGNATURE.name, ""))
-
-        if self.body_len:
-            body = [self.read_argument(type_) for type_ in tree.types]
-        else:
-            body = []
-
         self.message = Message(
             destination=header_fields.get(HEADER_DESTINATION),
             path=header_fields.get(HEADER_PATH),
@@ -293,16 +290,23 @@ class Unmarshaller:
             sender=header_fields.get(HEADER_SENDER),
             unix_fds=self.unix_fds,
             signature=tree.signature,
-            body=body,
+            body=[self.read_argument(t) for t in tree.types] if self.body_len else [],
             serial=self.serial,
         )
 
     def unmarshall(self):
-        """Unmarshall the message."""
-        with contextlib.suppress(MarshallerStreamEndError):
+        """Unmarshall the message.
+
+        The underlying read function will raise MarshallerStreamEndError
+        if there are not enough bytes in the buffer. This allows unmarshall
+        to be resumed when more data comes in over the wire.
+        """
+        try:
             if not self.message_type:
                 self._read_header()
             self._read_body()
+        except MarshallerStreamEndError:
+            return None
         return self.message
 
     _complex_parsers: Dict[
