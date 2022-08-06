@@ -141,25 +141,27 @@ def test_unmarshall_can_resume():
         "110000006f72672e626c75657a2e446576696365310000000e0000000000000004000000525353490001"
         "6e00a7ff000000000000"
     )
+    message_bytes = bytes.fromhex(bluez_rssi_message)
 
     class SlowStream(io.IOBase):
         """A fake stream that will only give us one byte at a time."""
 
         def __init__(self):
-            self.data = bytes.fromhex(bluez_rssi_message)
+            self.data = message_bytes
             self.pos = 0
 
-        def read(self, n):
+        def read(self, n) -> bytes:
             data = self.data[self.pos : self.pos + 1]
             self.pos += 1
             return data
 
     stream = SlowStream()
     unmarshaller = Unmarshaller(stream)
-    try:
-        unmarshaller.unmarshall()
-    except Exception as e:
-        raise e
+
+    for _ in range(len(bluez_rssi_message)):
+        if unmarshaller.unmarshall():
+            break
+    assert unmarshaller.message is not None
 
 
 def test_ay_buffer():

@@ -138,7 +138,8 @@ class Unmarshaller:
         :returns:
             None
         """
-        missing_bytes = offset - (len(self.buf) - self.offset)
+        start_len = len(self.buf)
+        missing_bytes = offset - (start_len - self.offset)
         if self.sock is None:
             data = self.stream.read(missing_bytes)
         else:
@@ -148,7 +149,7 @@ class Unmarshaller:
         if data is None:
             raise MarshallerStreamEndError()
         self.buf.extend(data)
-        if len(data) != missing_bytes:
+        if len(data) + start_len != offset:
             raise MarshallerStreamEndError()
 
     def read_boolean(self, _=None):
