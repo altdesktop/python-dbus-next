@@ -59,6 +59,13 @@ READER_TYPE = Dict[
 
 
 class MarshallerStreamEndError(Exception):
+    """This exception is raised when the end of the stream is reached.
+
+    This means more data is expected on the wire that has not yet been
+    received. The caller should call unmarshall later when more data is
+    available.
+    """
+
     pass
 
 
