@@ -288,10 +288,8 @@ class Unmarshaller:
         )
 
     def unmarshall(self):
-        with contextlib.suppress(MarshallerStreamEndError):
-            self._unmarshall()
-            return self.message
-        return None
+        self._unmarshall()
+        return self.message
 
     _complex_parsers: Dict[
         str, Tuple[Callable[["Unmarshaller", SignatureType], Any], None, None, None]
