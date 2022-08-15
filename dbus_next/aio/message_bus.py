@@ -354,7 +354,8 @@ class MessageBus(BaseMessageBus):
                     send_reply(Message.new_method_return(msg, method.out_signature, body, unix_fds))
 
             args = ServiceInterface._msg_body_to_args(msg)
-            fut = asyncio.ensure_future(method.fn(interface, *args))
+            kwargs = {method.sender_keyword: msg.sender} if method.sender_keyword else {}
+            fut = asyncio.ensure_future(method.fn(interface, *args, **kwargs))
             fut.add_done_callback(done)
 
         return handler

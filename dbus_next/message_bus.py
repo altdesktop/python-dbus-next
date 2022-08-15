@@ -728,7 +728,8 @@ class BaseMessageBus:
     def _make_method_handler(self, interface, method):
         def handler(msg, send_reply):
             args = ServiceInterface._msg_body_to_args(msg)
-            result = method.fn(interface, *args)
+            kwargs = {method.sender_keyword: msg.sender} if method.sender_keyword else {}
+            result = method.fn(interface, *args, **kwargs)
             body, fds = ServiceInterface._fn_result_to_body(
                 result, signature_tree=method.out_signature_tree)
             send_reply(Message.new_method_return(msg, method.out_signature, body, fds))
