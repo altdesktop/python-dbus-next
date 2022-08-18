@@ -23,6 +23,9 @@ class _Method:
             if i == 0:
                 # first is self
                 continue
+            if sender_keyword and param.name == sender_keyword:
+                # ignore sender_keyword
+                continue
             annotation = parse_annotation(param.annotation)
             if not annotation:
                 raise ValueError(
