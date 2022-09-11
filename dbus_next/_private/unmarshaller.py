@@ -167,14 +167,14 @@ class Unmarshaller:
         str_start = self.offset
         # read terminating '\0' byte as well (str_length + 1)
         self.offset += str_length + 1
-        return self.buf[str_start : str_start + str_length].decode()
+        return self.buf[str_start:str_start + str_length].decode()
 
     def read_signature(self, _=None):
         signature_len = self.view[self.offset]  # byte
         o = self.offset + 1
         # read terminating '\0' byte as well (str_length + 1)
         self.offset = o + signature_len + 1
-        return self.buf[o : o + signature_len].decode()
+        return self.buf[o:o + signature_len].decode()
 
     def read_variant(self, _=None):
         tree = SignatureTree._get(self.read_signature())
@@ -202,7 +202,7 @@ class Unmarshaller:
 
         if child_type.token == "y":
             self.offset += array_length
-            return self.buf[self.offset - array_length : self.offset]
+            return self.buf[self.offset - array_length:self.offset]
 
         beginning_offset = self.offset
 
@@ -226,7 +226,7 @@ class Unmarshaller:
             return reader(self, type_)
         self.offset += size + (-self.offset & (size - 1))  # align
         if self.can_cast:
-            return self.view[self.offset - size : self.offset].cast(ctype)[0]
+            return self.view[self.offset - size:self.offset].cast(ctype)[0]
         return struct.unpack_from(self.view, self.offset - size)[0]
 
     def header_fields(self, header_length):
@@ -242,7 +242,7 @@ class Unmarshaller:
             signature_len = self.view[self.offset]  # byte
             o = self.offset + 1
             self.offset += signature_len + 2  # one for the byte, one for the '\0'
-            tree = SignatureTree._get(self.buf[o : o + signature_len].decode())
+            tree = SignatureTree._get(self.buf[o:o + signature_len].decode())
             headers[HEADER_NAME_MAP[field_0]] = self.read_argument(tree.types[0])
         return headers
 

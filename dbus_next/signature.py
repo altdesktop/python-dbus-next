@@ -5,7 +5,6 @@ from functools import lru_cache
 from typing import Any, List, Union
 
 
-
 class SignatureType:
     """A class that represents a single complete type within a signature.
 
@@ -285,6 +284,7 @@ class SignatureType:
         "(": _verify_struct,
         "v": _verify_variant,
     }
+
 
 class SignatureTree:
     """A class that represents a signature as a tree structure for conveniently

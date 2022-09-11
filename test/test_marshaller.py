@@ -12,7 +12,7 @@ import pytest
 def print_buf(buf):
     i = 0
     while True:
-        p = buf[i : i + 8]
+        p = buf[i:i + 8]
         if not p:
             break
         print(p)
@@ -21,7 +21,6 @@ def print_buf(buf):
 
 # these messages have been verified with another library
 table = json.load(open(os.path.dirname(__file__) + "/data/messages.json"))
-
 
 
 def json_to_message(message: Dict[str, Any]) -> Message:
@@ -149,7 +148,7 @@ def test_unmarshall_can_resume():
             self.pos = 0
 
         def read(self, n) -> bytes:
-            data = self.data[self.pos : self.pos + 1]
+            data = self.data[self.pos:self.pos + 1]
             self.pos += 1
             return data
 

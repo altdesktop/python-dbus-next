@@ -13,6 +13,8 @@ REQUIRED_FIELDS = {
     MessageType.ERROR: ('error_name', 'reply_serial'),
     MessageType.METHOD_RETURN: ('reply_serial',),
 }
+
+
 class Message:
     """A class for sending and receiving messages through the
     :class:`MessageBus <dbus_next.message_bus.BaseMessageBus>` with the

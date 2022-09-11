@@ -19,6 +19,7 @@ class MessageType(Enum):
 
 MESSAGE_TYPE_MAP = {field.value: field for field in MessageType}
 
+
 class MessageFlag(IntFlag):
     """Flags that affect the behavior of sent and received messages
     """
@@ -29,6 +30,7 @@ class MessageFlag(IntFlag):
 
 
 MESSAGE_FLAG_MAP = {field.value: field for field in MessageFlag}
+
 
 class NameFlag(IntFlag):
     """A flag that affects the behavior of a name request.

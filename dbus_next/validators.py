@@ -104,6 +104,7 @@ def is_interface_name_valid(name: str) -> bool:
 
     return True
 
+
 @lru_cache(maxsize=512)
 def is_member_name_valid(member: str) -> bool:
     """Whether this is a valid member name.
