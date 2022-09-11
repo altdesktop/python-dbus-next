@@ -21,6 +21,8 @@ MAX_UNIX_FDS = 16
 
 UNPACK_SYMBOL = {LITTLE_ENDIAN: "<", BIG_ENDIAN: ">"}
 UNPACK_LENGTHS = {BIG_ENDIAN: Struct(">III"), LITTLE_ENDIAN: Struct("<III")}
+IS_BIG_ENDIAN = sys.byteorder == "big"
+IS_LITTLE_ENDIAN = sys.byteorder == "little"
 
 DBUS_TO_CTYPE = {
     "y": ("B", 1),  # byte
@@ -253,8 +255,9 @@ class Unmarshaller:
 
         self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
         self.msg_len = (self.header_len + (-self.header_len & 7) + self.body_len)  # align 8
-        if (sys.byteorder == "little" and endian == LITTLE_ENDIAN) or (sys.byteorder == "big"
-                                                                       and endian == BIG_ENDIAN):
+        if endian == BIG_ENDIAN and IS_BIG_ENDIAN:
+            self.can_cast = True
+        elif endian == LITTLE_ENDIAN and IS_LITTLE_ENDIAN:
             self.can_cast = True
         self.readers = self._readers_by_type[endian]
 
