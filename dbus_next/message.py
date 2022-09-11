@@ -7,6 +7,13 @@ from .signature import SignatureTree, Variant
 
 from typing import List, Any
 
+REQUIRED_FIELDS = {
+    MessageType.METHOD_CALL: ('path', 'member'),
+    MessageType.SIGNAL: ('path', 'member', 'interface'),
+    MessageType.ERROR: ('error_name', 'reply_serial'),
+    MessageType.METHOD_RETURN: ('reply_serial', ),
+}
+
 
 class Message:
     """A class for sending and receiving messages through the
@@ -95,21 +102,12 @@ class Message:
         if self.error_name is not None:
             assert_interface_name_valid(self.error_name)
 
-        def require_fields(*fields):
-            for field in fields:
-                if not getattr(self, field):
-                    raise InvalidMessageError(f'missing required field: {field}')
-
-        if self.message_type == MessageType.METHOD_CALL:
-            require_fields('path', 'member')
-        elif self.message_type == MessageType.SIGNAL:
-            require_fields('path', 'member', 'interface')
-        elif self.message_type == MessageType.ERROR:
-            require_fields('error_name', 'reply_serial')
-        elif self.message_type == MessageType.METHOD_RETURN:
-            require_fields('reply_serial')
-        else:
+        required_fields = REQUIRED_FIELDS.get(self.message_type)
+        if not required_fields:
             raise InvalidMessageError(f'got unknown message type: {self.message_type}')
+        for field in required_fields:
+            if not getattr(self, field):
+                raise InvalidMessageError(f'missing required field: {field}')
 
     @staticmethod
     def new_error(msg: 'Message', error_name: str, error_text: str) -> 'Message':
