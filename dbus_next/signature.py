@@ -301,7 +301,6 @@ class SignatureTree:
     :raises:
         :class:`InvalidSignatureError` if the given signature is not valid.
     """
-
     @staticmethod
     @lru_cache(maxsize=None)
     def _get(signature: str = '') -> "SignatureTree":
@@ -368,7 +367,6 @@ class Variant:
         :class:`InvalidSignatureError` if the signature is not valid.
         :class:`SignatureBodyMismatchError` if the signature does not match the body.
     """
-
     def __init__(self,
                  signature: Union[str, SignatureTree, SignatureType],
                  value: Any,

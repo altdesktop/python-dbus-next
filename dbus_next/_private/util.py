@@ -101,7 +101,6 @@ def parse_annotation(annotation: str) -> str:
     In this case, we must eval the result which we do only when given a string
     constant.
     '''
-
     def raise_value_error():
         raise ValueError(f'service annotations must be a string constant (got {annotation})')
 

@@ -58,7 +58,6 @@ def replace_variants(type_, item):
 
 
 def json_dump(what):
-
     def dumper(obj):
         try:
             return obj.toJSON()
@@ -141,7 +140,6 @@ def test_unmarshall_can_resume():
 
     class SlowStream(io.IOBase):
         """A fake stream that will only give us one byte at a time."""
-
         def __init__(self):
             self.data = message_bytes
             self.pos = 0

@@ -39,7 +39,6 @@ class BaseProxyInterface:
     :ivar bus: The message bus this proxy interface is connected to.
     :vartype bus: :class:`BaseMessageBus <dbus_next.message_bus.BaseMessageBus>`
     """
-
     def __init__(self, bus_name, path, introspection, bus):
 
         self.bus_name = bus_name
@@ -104,7 +103,6 @@ class BaseProxyInterface:
                 asyncio.create_task(cb_result)
 
     def _add_signal(self, intr_signal, interface):
-
         def on_signal_fn(fn):
             fn_signature = inspect.signature(fn)
             if not callable(fn) or len(fn_signature.parameters) != len(intr_signal.args):
@@ -172,7 +170,6 @@ class BaseProxyObject:
         - :class:`InvalidObjectPathError <dbus_next.InvalidObjectPathError>` - If the given object path is not valid.
         - :class:`InvalidIntrospectionError <dbus_next.InvalidIntrospectionError>` - If the introspection data for the node is not valid.
     """
-
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
                  bus: 'message_bus.BaseMessageBus', ProxyInterface: Type[BaseProxyInterface]):
         assert_object_path_valid(path)

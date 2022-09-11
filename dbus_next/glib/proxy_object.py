@@ -108,7 +108,6 @@ class ProxyInterface(BaseProxyInterface):
     :class:`DBusError <dbus_next.DBusError>` will be raised with information
     about the error.
     """
-
     def _add_method(self, intr_method):
         in_len = len(intr_method.in_args)
         out_len = len(intr_method.out_args)
@@ -177,9 +176,7 @@ class ProxyInterface(BaseProxyInterface):
         setattr(self, method_name_sync, method_fn_sync)
 
     def _add_property(self, intr_property):
-
         def property_getter(callback):
-
             def call_notify(msg, err):
                 if err:
                     callback(None, err)
@@ -229,7 +226,6 @@ class ProxyInterface(BaseProxyInterface):
             return property_value
 
         def property_setter(value, callback):
-
             def call_notify(msg, err):
                 if err:
                     callback(None, err)
@@ -279,7 +275,6 @@ class ProxyObject(BaseProxyObject):
 
     For more information, see the :class:`BaseProxyObject <dbus_next.proxy_object.BaseProxyObject>`.
     """
-
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
                  bus: BaseMessageBus):
         super().__init__(bus_name, path, introspection, bus, ProxyInterface)

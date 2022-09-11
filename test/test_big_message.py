@@ -8,7 +8,6 @@ has_gi = check_gi_repository()
 
 
 class ExampleInterface(ServiceInterface):
-
     def __init__(self):
         super().__init__('example.interface')
 

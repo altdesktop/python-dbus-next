@@ -47,7 +47,6 @@ class BaseMessageBus:
         and receive messages.
     :vartype connected: bool
     """
-
     def __init__(self,
                  bus_address: Optional[str] = None,
                  bus_type: BusType = BusType.SESSION,
@@ -628,7 +627,6 @@ class BaseMessageBus:
         bus = self
 
         class SendReply:
-
             def __enter__(self):
                 return self
 
@@ -728,7 +726,6 @@ class BaseMessageBus:
                 del self._method_return_handlers[msg.reply_serial]
 
     def _make_method_handler(self, interface, method):
-
         def handler(msg, send_reply):
             args = ServiceInterface._msg_body_to_args(msg)
             result = method.fn(interface, *args)

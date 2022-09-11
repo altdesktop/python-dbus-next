@@ -8,7 +8,6 @@ standard_interfaces_count = len(intr.Node.default().interfaces)
 
 
 class ExampleInterface(ServiceInterface):
-
     def __init__(self, name):
         self._method_called = False
         super().__init__(name)

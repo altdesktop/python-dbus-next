@@ -10,13 +10,11 @@ standard_interfaces_count = len(intr.Node.default().interfaces)
 
 
 class ExampleInterface(ServiceInterface):
-
     def __init__(self, name):
         super().__init__(name)
 
 
 class ExampleComplexInterface(ServiceInterface):
-
     def __init__(self, name):
         self._foo = 42
         self._bar = 'str'

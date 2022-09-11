@@ -35,7 +35,6 @@ class Authenticator:
 
     :seealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-
     def _authentication_start(self, negotiate_unix_fd=False):
         raise NotImplementedError(
             'authentication_start() must be implemented in the inheriting class')
@@ -54,7 +53,6 @@ class AuthExternal(Authenticator):
 
     :sealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-
     def __init__(self):
         self.negotiate_unix_fd = False
         self.negotiating_fds = False
@@ -86,7 +84,6 @@ class AuthAnnonymous(Authenticator):
 
     :sealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-
     def _authentication_start(self, negotiate_unix_fd=False) -> str:
         if negotiate_unix_fd:
             raise AuthError(

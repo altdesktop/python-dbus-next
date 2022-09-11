@@ -3,7 +3,6 @@ from dbus_next.service import method, signal, dbus_property, ServiceInterface
 
 
 class ExampleInterface(ServiceInterface):
-
     def __init__(self):
         super().__init__('test.interface')
         self._some_prop = 55
