@@ -86,7 +86,7 @@ If any file descriptors are sent or received (DBus type ``h``), the variable ref
         # emit the changed signal after two seconds.
         await asyncio.sleep(2)
 
-        interface.changed()
+        interface.Changed()
 
         await bus.wait_for_disconnect()
 
