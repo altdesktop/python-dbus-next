@@ -43,7 +43,7 @@ def is_bus_name_valid(name: str) -> bool:
     return True
 
 
-@lru_cache(maxsize=512)
+@lru_cache(maxsize=1024)
 def is_object_path_valid(path: str) -> bool:
     """Whether this is a valid object path.
 
