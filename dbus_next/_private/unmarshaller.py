@@ -255,9 +255,9 @@ class Unmarshaller:
 
         self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
         self.msg_len = (self.header_len + (-self.header_len & 7) + self.body_len)  # align 8
-        if endian == BIG_ENDIAN and IS_BIG_ENDIAN:
+        if IS_BIG_ENDIAN and endian == BIG_ENDIAN:
             self.can_cast = True
-        elif endian == LITTLE_ENDIAN and IS_LITTLE_ENDIAN:
+        elif IS_LITTLE_ENDIAN and endian == LITTLE_ENDIAN:
             self.can_cast = True
         self.readers = self._readers_by_type[endian]
 
