@@ -457,7 +457,7 @@ class MessageBus(BaseMessageBus):
                 self._stream.write(Authenticator._format_line(resp))
                 self._stream.flush()
                 if resp == 'BEGIN':
-                    self._readline_source = None
+                    self._readline_source.destroy()
                     authenticate_notify(None)
                     return True
             except Exception as e:
