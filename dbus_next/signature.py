@@ -218,7 +218,7 @@ class SignatureType:
                 child_type.children[0].verify(key)
                 child_type.children[1].verify(value)
         elif child_type.token == 'y':
-            if not isinstance(body, bytes):
+            if not isinstance(body, (bytearray, bytes)):
                 raise SignatureBodyMismatchError(
                     f'DBus ARRAY type "a" with BYTE child must be Python type "bytes", got {type(body)}'
                 )
