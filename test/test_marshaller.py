@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 from dbus_next._private.unmarshaller import Unmarshaller
 from dbus_next import Message, Variant, SignatureTree, MessageType, MessageFlag
 
@@ -24,7 +24,7 @@ table = json.load(open(os.path.dirname(__file__) + "/data/messages.json"))
 
 
 
-def json_to_message(message: dict[str, Any]) -> Message:
+def json_to_message(message: Dict[str, Any]) -> Message:
     copy = dict(message)
     if "message_type" in copy:
         copy["message_type"] = MessageType(copy["message_type"])
