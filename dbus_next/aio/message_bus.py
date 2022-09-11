@@ -28,6 +28,7 @@ def _future_set_result(fut, result):
 
 
 class _MessageWriter:
+
     def __init__(self, bus):
         self.messages = Queue()
         self.negotiate_unix_fd = bus._negotiate_unix_fd
@@ -114,6 +115,7 @@ class MessageBus(BaseMessageBus):
         and receive messages.
     :vartype connected: bool
     """
+
     def __init__(self,
                  bus_address: str = None,
                  bus_type: BusType = BusType.SESSION,
@@ -346,6 +348,7 @@ class MessageBus(BaseMessageBus):
             return super()._make_method_handler(interface, method)
 
         def handler(msg, send_reply):
+
             def done(fut):
                 with send_reply:
                     result = fut.result()

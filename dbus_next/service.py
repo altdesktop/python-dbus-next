@@ -12,6 +12,7 @@ import asyncio
 
 
 class _Method:
+
     def __init__(self, fn, name, disabled=False):
         in_signature = ''
         out_signature = ''
@@ -86,6 +87,7 @@ def method(name: str = None, disabled: bool = False):
 
     @no_type_check_decorator
     def decorator(fn):
+
         @wraps(fn)
         def wrapped(*args, **kwargs):
             fn(*args, **kwargs)
@@ -99,6 +101,7 @@ def method(name: str = None, disabled: bool = False):
 
 
 class _Signal:
+
     def __init__(self, fn, name, disabled=False):
         inspection = inspect.signature(fn)
 
@@ -180,6 +183,7 @@ def signal(name: str = None, disabled: bool = False):
 
 
 class _Property(property):
+
     def set_options(self, options):
         self.options = getattr(self, 'options', {})
         for k, v in options.items():
@@ -314,6 +318,7 @@ class ServiceInterface:
         valid interface name.
     :vartype name: str
     """
+
     def __init__(self, name: str):
         # TODO cannot be overridden by a dbus member
         self.name = name

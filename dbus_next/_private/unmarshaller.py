@@ -47,15 +47,8 @@ HEADER_ERROR_NAME = HeaderField.ERROR_NAME.name
 HEADER_REPLY_SERIAL = HeaderField.REPLY_SERIAL.name
 HEADER_SENDER = HeaderField.SENDER.name
 
-READER_TYPE = Dict[
-    str,
-    Tuple[
-        Optional[Callable[["Unmarshaller", SignatureType], Any]],
-        Optional[str],
-        Optional[int],
-        Optional[Struct],
-    ],
-]
+READER_TYPE = Dict[str, Tuple[Optional[Callable[["Unmarshaller", SignatureType], Any]],
+                              Optional[str], Optional[int], Optional[Struct], ], ]
 
 
 class MarshallerStreamEndError(Exception):
@@ -117,17 +110,14 @@ class Unmarshaller:
 
         try:
             msg, ancdata, *_ = self.sock.recvmsg(
-                length, socket.CMSG_LEN(MAX_UNIX_FDS * unix_fd_list.itemsize)
-            )
+                length, socket.CMSG_LEN(MAX_UNIX_FDS * unix_fd_list.itemsize))
         except BlockingIOError:
             raise MarshallerStreamEndError()
 
         for level, type_, data in ancdata:
             if not (level == socket.SOL_SOCKET and type_ == socket.SCM_RIGHTS):
                 continue
-            unix_fd_list.frombytes(
-                data[: len(data) - (len(data) % unix_fd_list.itemsize)]
-            )
+            unix_fd_list.frombytes(data[:len(data) - (len(data) % unix_fd_list.itemsize)])
             self.unix_fds.extend(list(unix_fd_list))
 
         return msg
@@ -187,9 +177,7 @@ class Unmarshaller:
 
     def read_dict_entry(self, type_: SignatureType):
         self.offset += -self.offset & 7  # align 8
-        return self.read_argument(type_.children[0]), self.read_argument(
-            type_.children[1]
-        )
+        return self.read_argument(type_.children[0]), self.read_argument(type_.children[1])
 
     def read_array(self, type_: SignatureType):
         self.offset += -self.offset & 3  # align 4 for the array
@@ -259,22 +247,14 @@ class Unmarshaller:
 
         if endian != LITTLE_ENDIAN and endian != BIG_ENDIAN:
             raise InvalidMessageError(
-                f"Expecting endianness as the first byte, got {endian} from {buffer}"
-            )
+                f"Expecting endianness as the first byte, got {endian} from {buffer}")
         if protocol_version != PROTOCOL_VERSION:
-            raise InvalidMessageError(
-                f"got unknown protocol version: {protocol_version}"
-            )
+            raise InvalidMessageError(f"got unknown protocol version: {protocol_version}")
 
-        self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[
-            endian
-        ].unpack_from(buffer, 4)
-        self.msg_len = (
-            self.header_len + (-self.header_len & 7) + self.body_len
-        )  # align 8
-        if (sys.byteorder == "little" and endian == LITTLE_ENDIAN) or (
-            sys.byteorder == "big" and endian == BIG_ENDIAN
-        ):
+        self.body_len, self.serial, self.header_len = UNPACK_LENGTHS[endian].unpack_from(buffer, 4)
+        self.msg_len = (self.header_len + (-self.header_len & 7) + self.body_len)  # align 8
+        if (sys.byteorder == "little" and endian == LITTLE_ENDIAN) or (sys.byteorder == "big"
+                                                                       and endian == BIG_ENDIAN):
             self.can_cast = True
         self.readers = self._readers_by_type[endian]
 
@@ -317,18 +297,17 @@ class Unmarshaller:
             return None
         return self.message
 
-    _complex_parsers: Dict[
-        str, Tuple[Callable[["Unmarshaller", SignatureType], Any], None, None, None]
-    ] = {
-        "b": (read_boolean, None, None, None),
-        "o": (read_string, None, None, None),
-        "s": (read_string, None, None, None),
-        "g": (read_signature, None, None, None),
-        "a": (read_array, None, None, None),
-        "(": (read_struct, None, None, None),
-        "{": (read_dict_entry, None, None, None),
-        "v": (read_variant, None, None, None),
-    }
+    _complex_parsers: Dict[str, Tuple[Callable[["Unmarshaller", SignatureType], Any], None, None,
+                                      None]] = {
+                                          "b": (read_boolean, None, None, None),
+                                          "o": (read_string, None, None, None),
+                                          "s": (read_string, None, None, None),
+                                          "g": (read_signature, None, None, None),
+                                          "a": (read_array, None, None, None),
+                                          "(": (read_struct, None, None, None),
+                                          "{": (read_dict_entry, None, None, None),
+                                          "v": (read_variant, None, None, None),
+                                      }
 
     _ctype_by_endian: Dict[int, Dict[str, Tuple[None, str, int, Struct]]] = {
         endian: {
@@ -343,6 +322,12 @@ class Unmarshaller:
     }
 
     _readers_by_type: Dict[int, READER_TYPE] = {
-        BIG_ENDIAN: {**_ctype_by_endian[BIG_ENDIAN], **_complex_parsers},
-        LITTLE_ENDIAN: {**_ctype_by_endian[LITTLE_ENDIAN], **_complex_parsers},
+        BIG_ENDIAN: {
+            **_ctype_by_endian[BIG_ENDIAN],
+            **_complex_parsers
+        },
+        LITTLE_ENDIAN: {
+            **_ctype_by_endian[LITTLE_ENDIAN],
+            **_complex_parsers
+        },
     }

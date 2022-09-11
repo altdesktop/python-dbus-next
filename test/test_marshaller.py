@@ -58,6 +58,7 @@ def replace_variants(type_, item):
 
 
 def json_dump(what):
+
     def dumper(obj):
         try:
             return obj.toJSON()
@@ -113,19 +114,18 @@ def test_unmarshalling_with_table(unmarshall_table):
         message.body = body
 
         for attr in [
-            "body",
-            "signature",
-            "message_type",
-            "destination",
-            "path",
-            "interface",
-            "member",
-            "flags",
-            "serial",
+                "body",
+                "signature",
+                "message_type",
+                "destination",
+                "path",
+                "interface",
+                "member",
+                "flags",
+                "serial",
         ]:
-            assert getattr(unmarshaller.message, attr) == getattr(
-                message, attr
-            ), f"attr doesnt match: {attr}"
+            assert getattr(unmarshaller.message,
+                           attr) == getattr(message, attr), f"attr doesnt match: {attr}"
 
 
 def test_unmarshall_can_resume():
@@ -136,8 +136,7 @@ def test_unmarshall_can_resume():
         "746f702e444275732e50726f7065727469657300030173001100000050726f706572746965734368616e"
         "67656400000000000000080167000873617b73767d617300000007017300040000003a312e3400000000"
         "110000006f72672e626c75657a2e446576696365310000000e0000000000000004000000525353490001"
-        "6e00a7ff000000000000"
-    )
+        "6e00a7ff000000000000")
     message_bytes = bytes.fromhex(bluez_rssi_message)
 
     class SlowStream(io.IOBase):

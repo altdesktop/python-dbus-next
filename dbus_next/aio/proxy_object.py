@@ -72,7 +72,9 @@ class ProxyInterface(BaseProxyInterface):
     If the service returns an error for a DBus call, a :class:`DBusError
     <dbus_next.DBusError>` will be raised with information about the error.
     """
+
     def _add_method(self, intr_method):
+
         async def method_fn(*args, flags=MessageFlag.NONE):
             input_body, unix_fds = replace_fds_with_idx(intr_method.in_signature, list(args))
 
@@ -106,6 +108,7 @@ class ProxyInterface(BaseProxyInterface):
         setattr(self, method_name, method_fn)
 
     def _add_property(self, intr_property):
+
         async def property_getter():
             msg = await self.bus.call(
                 Message(destination=self.bus_name,
@@ -151,6 +154,7 @@ class ProxyObject(BaseProxyObject):
 
     For more information, see the :class:`BaseProxyObject <dbus_next.proxy_object.BaseProxyObject>`.
     """
+
     def __init__(self, bus_name: str, path: str, introspection: Union[intr.Node, str, ET.Element],
                  bus: BaseMessageBus):
         super().__init__(bus_name, path, introspection, bus, ProxyInterface)

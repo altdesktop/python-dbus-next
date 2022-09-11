@@ -18,6 +18,4 @@ class HeaderField(Enum):
     UNIX_FDS = 9
 
 
-HEADER_NAME_MAP = {
-    field.value: field.name for field in HeaderField
-}
+HEADER_NAME_MAP = {field.value: field.name for field in HeaderField}

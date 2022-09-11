@@ -31,21 +31,25 @@ class SignalDisabledError(Exception):
 
 
 class InvalidBusNameError(TypeError):
+
     def __init__(self, name):
         super().__init__(f'invalid bus name: {name}')
 
 
 class InvalidObjectPathError(TypeError):
+
     def __init__(self, path):
         super().__init__(f'invalid object path: {path}')
 
 
 class InvalidInterfaceNameError(TypeError):
+
     def __init__(self, name):
         super().__init__(f'invalid interface name: {name}')
 
 
 class InvalidMemberNameError(TypeError):
+
     def __init__(self, member):
         super().__init__(f'invalid member name: {member}')
 
@@ -56,6 +60,7 @@ from .constants import ErrorType, MessageType
 
 
 class DBusError(Exception):
+
     def __init__(self, type_, text, reply=None):
         super().__init__(text)
 

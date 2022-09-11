@@ -11,7 +11,7 @@ REQUIRED_FIELDS = {
     MessageType.METHOD_CALL: ('path', 'member'),
     MessageType.SIGNAL: ('path', 'member', 'interface'),
     MessageType.ERROR: ('error_name', 'reply_serial'),
-    MessageType.METHOD_RETURN: ('reply_serial',),
+    MessageType.METHOD_RETURN: ('reply_serial', ),
 }
 
 
@@ -61,6 +61,7 @@ class Message:
         - :class:`InvalidMemberNameError` - If ``member`` is not a valid member name.
         - :class:`InvalidInterfaceNameError` - If ``error_name`` or ``interface`` is not a valid interface name.
     """
+
     def __init__(self,
                  destination: str = None,
                  path: str = None,

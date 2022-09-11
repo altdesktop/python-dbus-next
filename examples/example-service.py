@@ -12,6 +12,7 @@ import asyncio
 
 
 class ExampleInterface(ServiceInterface):
+
     def __init__(self, name):
         super().__init__(name)
         self._string_prop = 'kevin'

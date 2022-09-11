@@ -8,6 +8,7 @@ import pytest
 
 
 class ExampleInterface(ServiceInterface):
+
     def __init__(self):
         super().__init__('test.interface')
 

@@ -24,6 +24,7 @@ except ImportError as e:
 
 
 class _MessageSource(_GLibSource):
+
     def __init__(self, bus):
         self.unmarshaller = None
         self.bus = bus
@@ -54,6 +55,7 @@ class _MessageSource(_GLibSource):
 
 
 class _MessageWritableSource(_GLibSource):
+
     def __init__(self, bus):
         self.bus = bus
         self.buf = b''
@@ -99,6 +101,7 @@ class _MessageWritableSource(_GLibSource):
 
 
 class _AuthLineSource(_GLibSource):
+
     def __init__(self, stream):
         self.stream = stream
         self.buf = b''
@@ -146,6 +149,7 @@ class MessageBus(BaseMessageBus):
         be :class:`None` until the message bus connects.
     :vartype unique_name: str
     """
+
     def __init__(self,
                  bus_address: str = None,
                  bus_type: BusType = BusType.SESSION,
@@ -174,6 +178,7 @@ class MessageBus(BaseMessageBus):
             :class:`AuthError <dbus_next.AuthError>` on authorization errors.
         :type callback: :class:`Callable`
         """
+
         def authenticate_notify(exc):
             if exc is not None:
                 if connect_notify is not None:

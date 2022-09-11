@@ -7,6 +7,7 @@ import asyncio
 
 
 class ExampleInterface(ServiceInterface):
+
     def __init__(self, name):
         super().__init__(name)
         self._string_prop = 'hi'
@@ -71,6 +72,7 @@ class ExampleInterface(ServiceInterface):
 
 
 class AsyncInterface(ServiceInterface):
+
     def __init__(self, name):
         super().__init__(name)
         self._string_prop = 'hi'

@@ -3,6 +3,7 @@ from struct import pack
 
 
 class Marshaller:
+
     def __init__(self, signature, body):
         self.signature_tree = SignatureTree._get(signature)
         self.signature_tree.verify(body)

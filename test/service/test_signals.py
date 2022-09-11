@@ -9,6 +9,7 @@ import asyncio
 
 
 class ExampleInterface(ServiceInterface):
+
     def __init__(self, name):
         super().__init__(name)
 
@@ -40,6 +41,7 @@ class ExampleInterface(ServiceInterface):
 
 
 class SecondExampleInterface(ServiceInterface):
+
     def __init__(self, name):
         super().__init__(name)
 
@@ -53,6 +55,7 @@ class SecondExampleInterface(ServiceInterface):
 
 
 class ExpectMessage:
+
     def __init__(self, bus1, bus2, interface_name, timeout=1):
         self.future = asyncio.get_event_loop().create_future()
         self.bus1 = bus1
