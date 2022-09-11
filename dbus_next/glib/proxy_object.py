@@ -133,7 +133,14 @@ class ProxyInterface(BaseProxyInterface):
                 except DBusError as e:
                     err = e
 
-                callback(msg.body, err)
+                if not out_len:
+                    body = None
+                elif out_len == 1:
+                    body = msg.body[0]
+                else:
+                    body = msg.body
+
+                callback(body, err)
 
             self.bus.call(
                 Message(destination=self.bus_name,
@@ -162,12 +169,7 @@ class ProxyInterface(BaseProxyInterface):
             if call_error:
                 raise call_error
 
-            if not out_len:
-                return None
-            elif out_len == 1:
-                return call_body[0]
-            else:
-                return call_body
+            return call_body
 
         method_name = f'call_{BaseProxyInterface._to_snake_case(intr_method.name)}'
         method_name_sync = f'{method_name}_sync'
