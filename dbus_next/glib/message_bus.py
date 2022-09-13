@@ -128,7 +128,8 @@ class MessageBus(BaseMessageBus):
 
     You must call :func:`connect() <dbus_next.glib.MessageBus.connect>` or
     :func:`connect_sync() <dbus_next.glib.MessageBus.connect_sync>` before
-    using this message bus.
+    using this message bus. The class is a context manager which handles
+    connect and disconnect.
 
     :param bus_type: The type of bus to connect to. Affects the search path for
         the bus address.
@@ -242,6 +243,12 @@ class MessageBus(BaseMessageBus):
             raise connection_error
 
         return self
+
+    def __enter__(self):
+        return self.connect_sync()
+
+    def __exit__(self, exc_type, exc, tb):
+        self.disconnect()
 
     def call(self,
              msg: Message,

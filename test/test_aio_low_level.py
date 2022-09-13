@@ -136,3 +136,15 @@ async def test_sending_signals_between_buses(event_loop):
     assert signal.member == 'SomeSignal'
     assert signal.signature == 's'
     assert signal.body == ['a signal']
+
+
+@pytest.mark.asyncio
+async def test_bus_context_manager():
+    async with MessageBus() as bus:
+        assert bus.connected
+        await bus.call(
+            Message(destination='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    interface='org.freedesktop.DBus',
+                    member='Ping'))
+    assert not bus.connected

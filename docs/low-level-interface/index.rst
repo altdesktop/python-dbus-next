@@ -29,53 +29,52 @@ Mixed use of the low and high level interfaces on the same bus connection is not
 
 .. code-block:: python3
 
-    bus = await MessageBus().connect()
+    async with MessageBus() as bus:
 
-    msg = Message(destination='org.freedesktop.DBus',
-                  path='/org/freedesktop/DBus',
-                  interface='org.freedesktop.DBus',
-                  member='ListNames',
-                  serial=bus.next_serial())
+        msg = Message(destination='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    interface='org.freedesktop.DBus',
+                    member='ListNames',
+                    serial=bus.next_serial())
 
-    reply = await bus.call(msg)
+        reply = await bus.call(msg)
 
-    assert reply.message_type == MessageType.METHOD_RETURN
+        assert reply.message_type == MessageType.METHOD_RETURN
 
-    print(reply.body[0])
+        print(reply.body[0])
 
 :example: A custom method handler. Note that to receive these messages, you must `add a match rule <https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-routing-match-rules>`_ for the types of messages you want to receive.
 
 .. code-block:: python3
 
-    bus = await MessageBus().connect()
+    async with MessageBus() as bus:
 
-    reply = await bus.call(
-        Message(destination='org.freedesktop.DBus',
-                path='/org/freedesktop/DBus',
-                member='AddMatch',
-                signature='s',
-                body=["member='MyMember', interface='com.test.interface'"]))
+        reply = await bus.call(
+            Message(destination='org.freedesktop.DBus',
+                    path='/org/freedesktop/DBus',
+                    member='AddMatch',
+                    signature='s',
+                    body=["member='MyMember', interface='com.test.interface'"]))
 
-    assert reply.message_type == MessageType.METHOD_RETURN
+        assert reply.message_type == MessageType.METHOD_RETURN
 
-    def message_handler(msg):
-        if msg.interface == 'com.test.interface' and msg.member == 'MyMember':
-            return Message.new_method_return(msg, 's', ['got it'])
+        def message_handler(msg):
+            if msg.interface == 'com.test.interface' and msg.member == 'MyMember':
+                return Message.new_method_return(msg, 's', ['got it'])
 
-    bus.add_message_handler(message_handler)
+        bus.add_message_handler(message_handler)
 
-    await bus.wait_for_disconnect()
 
 :example: Emit a signal
 
 .. code-block:: python3
 
-    bus = await MessageBus().connect()
+    async with MessageBus() as bus:
 
-    await bus.send(Message.new_signal('/com/test/path',
-                                      'com.test.interface',
-                                      'SomeSignal',
-                                      's', ['a signal']))
+        await bus.send(Message.new_signal('/com/test/path',
+                                        'com.test.interface',
+                                        'SomeSignal',
+                                        's', ['a signal']))
 
 :example: Send a file descriptor. The message format will be the same when
           received on the client side. You are responsible for closing any file
@@ -85,16 +84,16 @@ Mixed use of the low and high level interfaces on the same bus connection is not
 
 .. code-block:: python3
 
-    bus = await MessageBus().connect(negotiate_unix_fd=True)
+    async with MessageBus(negotiate_unix_fd=True) as bus:
 
-    fd = os.open('/dev/null', os.O_RDONLY)
+        fd = os.open('/dev/null', os.O_RDONLY)
 
-    msg = Message(destination='org.test.destination',
-                  path='/org/test/destination',
-                  interface='org.test.interface',
-                  member='TestMember',
-                  signature='h',
-                  body=[0],
-                  unix_fds=[fd])
+        msg = Message(destination='org.test.destination',
+                    path='/org/test/destination',
+                    interface='org.test.interface',
+                    member='TestMember',
+                    signature='h',
+                    body=[0],
+                    unix_fds=[fd])
 
-    await bus.send(msg)
+        await bus.send(msg)

@@ -93,7 +93,8 @@ class MessageBus(BaseMessageBus):
     interface to send and receive messages and expose services.
 
     You must call :func:`connect() <dbus_next.aio.MessageBus.connect>` before
-    using this message bus.
+    using this message bus. The class is an async context manager which handles
+    connect and disconnect.
 
     :param bus_type: The type of bus to connect to. Affects the search path for
         the bus address.
@@ -175,6 +176,13 @@ class MessageBus(BaseMessageBus):
         self._stream.flush()
 
         return await future
+
+    async def __aenter__(self):
+        return await self.connect()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.disconnect()
+        await self.wait_for_disconnect()
 
     async def introspect(self, bus_name: str, path: str, timeout: float = 30.0) -> intr.Node:
         """Get introspection data for the node at the given path from the given
