@@ -90,10 +90,17 @@ def method(name: str = None, disabled: bool = False):
         def wrapped(*args, **kwargs):
             fn(*args, **kwargs)
 
-        fn_name = name if name else fn.__name__
-        wrapped.__dict__['__DBUS_METHOD'] = _Method(fn, fn_name, disabled=disabled)
+        @wraps(fn)
+        async def async_wrapped(*args, **kwargs):
+            await fn(*args, **kwargs)
 
-        return wrapped
+        fn_name = name if name else fn.__name__
+        if asyncio.iscoroutinefunction(fn):
+            async_wrapped.__dict__["__DBUS_METHOD"] = _Method(fn, fn_name, disabled=disabled)
+            return async_wrapped
+        else:
+            wrapped.__dict__["__DBUS_METHOD"] = _Method(fn, fn_name, disabled=disabled)
+            return wrapped
 
     return decorator
 
