@@ -6,32 +6,47 @@ from ._private.util import signature_contains_type, replace_fds_with_idx, replac
 
 from functools import wraps
 import inspect
-from typing import no_type_check_decorator, Dict, List, Any
+from typing import no_type_check_decorator, Dict, List, Any, Optional
 import copy
 import asyncio
 
 
 class _Method:
-    def __init__(self, fn, name, disabled=False):
-        in_signature = ''
-        out_signature = ''
+    def __init__(self,
+                 fn,
+                 name,
+                 disabled=False,
+                 in_signature: Optional[str] = None,
+                 out_signature: Optional[str] = None):
 
         inspection = inspect.signature(fn)
 
-        in_args = []
-        for i, param in enumerate(inspection.parameters.values()):
-            if i == 0:
-                # first is self
-                continue
-            annotation = parse_annotation(param.annotation)
-            if not annotation:
-                raise ValueError(
-                    'method parameters must specify the dbus type string as an annotation')
-            in_args.append(intr.Arg(annotation, intr.ArgDirection.IN, param.name))
-            in_signature += annotation
+        if in_signature is None:
+            in_signature = ''
+            in_args = []
+            for i, param in enumerate(inspection.parameters.values()):
+                if i == 0:
+                    # first is self
+                    continue
+                annotation = parse_annotation(param.annotation)
+                if not annotation:
+                    raise ValueError(
+                        'method parameters must specify the dbus type string as an annotation')
+                in_args.append(intr.Arg(annotation, intr.ArgDirection.IN, param.name))
+                in_signature += annotation
+        else:
+            name_iter = iter(inspection.parameters.keys())
+            next(name_iter)  # skip self parameter
+            in_args = [
+                intr.Arg(type_, intr.ArgDirection.IN, name)
+                for name, type_ in zip(name_iter,
+                                       SignatureTree._get(in_signature).types)
+            ]
+
+        if out_signature is None:
+            out_signature = parse_annotation(inspection.return_annotation)
 
         out_args = []
-        out_signature = parse_annotation(inspection.return_annotation)
         if out_signature:
             for type_ in SignatureTree._get(out_signature).types:
                 out_args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -41,12 +56,15 @@ class _Method:
         self.disabled = disabled
         self.introspection = intr.Method(name, in_args, out_args)
         self.in_signature = in_signature
-        self.out_signature = out_signature
         self.in_signature_tree = SignatureTree._get(in_signature)
+        self.out_signature = out_signature
         self.out_signature_tree = SignatureTree._get(out_signature)
 
 
-def method(name: str = None, disabled: bool = False):
+def method(name: str = None,
+           disabled: bool = False,
+           in_signature: Optional[str] = None,
+           out_signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus service method.
 
     The parameters and return value must each be annotated with a signature
@@ -66,6 +84,10 @@ def method(name: str = None, disabled: bool = False):
     :type name: str
     :param disabled: If set to true, the method will not be visible to clients.
     :type disabled: bool
+    :param in_signature: If set, this signature string will be used and no parsing of method paramter type annotations will be done.
+    :type in_signature: str
+    :param out_signature: If set, this signature string will be used and no parsing of the method return annotation will be done.
+    :type out_signature: str
 
     :example:
 
@@ -91,7 +113,12 @@ def method(name: str = None, disabled: bool = False):
             fn(*args, **kwargs)
 
         fn_name = name if name else fn.__name__
-        wrapped.__dict__['__DBUS_METHOD'] = _Method(fn, fn_name, disabled=disabled)
+        _method = _Method(fn,
+                          fn_name,
+                          disabled=disabled,
+                          in_signature=in_signature,
+                          out_signature=out_signature)
+        wrapped.__dict__['__DBUS_METHOD'] = _method
 
         return wrapped
 
@@ -99,17 +126,16 @@ def method(name: str = None, disabled: bool = False):
 
 
 class _Signal:
-    def __init__(self, fn, name, disabled=False):
+    def __init__(self, fn, name, disabled=False, signature: Optional[str] = None):
         inspection = inspect.signature(fn)
 
         args = []
-        signature = ''
         signature_tree = None
 
-        return_annotation = parse_annotation(inspection.return_annotation)
+        if signature is None:
+            signature = parse_annotation(inspection.return_annotation)
 
-        if return_annotation:
-            signature = return_annotation
+        if signature:
             signature_tree = SignatureTree._get(signature)
             for type_ in signature_tree.types:
                 args.append(intr.Arg(type_, intr.ArgDirection.OUT))
@@ -124,7 +150,7 @@ class _Signal:
         self.introspection = intr.Signal(self.name, args)
 
 
-def signal(name: str = None, disabled: bool = False):
+def signal(name: str = None, disabled: bool = False, signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus signal.
 
     The signal is broadcast on the bus when the decorated class method is
@@ -141,6 +167,8 @@ def signal(name: str = None, disabled: bool = False):
     :type name: str
     :param disabled: If set to true, the signal will not be visible to clients.
     :type disabled: bool
+    :param signature: If set, this signature string will be used and no parsing of method type annotations will be done.
+    :type signature: str
 
     :example:
 
@@ -162,7 +190,7 @@ def signal(name: str = None, disabled: bool = False):
     @no_type_check_decorator
     def decorator(fn):
         fn_name = name if name else fn.__name__
-        signal = _Signal(fn, fn_name, disabled)
+        signal = _Signal(fn, fn_name, disabled, signature)
 
         @wraps(fn)
         def wrapped(self, *args, **kwargs):
@@ -205,18 +233,26 @@ class _Property(property):
         self.__dict__['__DBUS_PROPERTY'] = True
 
     def __init__(self, fn, *args, **kwargs):
+        if args:
+            # this is a call to prop.setter - all we need to do call super
+            return super().__init__(fn, *args, **kwargs)
+
         self.prop_getter = fn
         self.prop_setter = None
 
         inspection = inspect.signature(fn)
+
         if len(inspection.parameters) != 1:
             raise ValueError('the property must only have the "self" input parameter')
 
-        return_annotation = parse_annotation(inspection.return_annotation)
+        return_annotation = kwargs.pop('signature', None)
+        if return_annotation is None:
+            return_annotation = parse_annotation(inspection.return_annotation)
 
         if not return_annotation:
             raise ValueError(
-                'the property must specify the dbus type string as a return annotation string')
+                'the property must specify the dbus type string as a return annotation string or with the signature option'
+            )
 
         self.signature = return_annotation
         tree = SignatureTree._get(return_annotation)
@@ -226,10 +262,9 @@ class _Property(property):
 
         self.type = tree.types[0]
 
-        if 'options' in kwargs:
-            options = kwargs['options']
+        options = kwargs.pop('options', None)
+        if options is not None:
             self.set_options(options)
-            del kwargs['options']
 
         super().__init__(fn, *args, **kwargs)
 
@@ -237,15 +272,30 @@ class _Property(property):
         # XXX The setter decorator seems to be recreating the class in the list
         # of class members and clobbering the options so we need to reset them.
         # Why does it do that?
+        #
+        #     The default implementation of setter basically looks like this:
+        #
+        #           def setter(self, fset):
+        #               return type(self)(self.fget, fset, self.fdel)
+        #
+        #     That is it creates a new instance, with the new setter, carrying
+        #     the getter and deleter over from the the existing instance.
+        #
+        #     In this case, we need to carry all the private properties from the
+        #     old instance and reset the options on the new instance.
         result = super().setter(fn, **kwargs)
+        result.prop_getter = self.prop_getter
         result.prop_setter = fn
+        result.signature = self.signature
+        result.type = self.type
         result.set_options(self.options)
         return result
 
 
 def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
                   name: str = None,
-                  disabled: bool = False):
+                  disabled: bool = False,
+                  signature: Optional[str] = None):
     """A decorator to mark a class method of a :class:`ServiceInterface` to be a DBus property.
 
     The class method must be a Python getter method with a return annotation
@@ -270,6 +320,8 @@ def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
     :param disabled: If set to true, the property will not be visible to
         clients.
     :type disabled: bool
+    :param signature: If set, this signature string will be used and no parsing of method type annotations will be done.
+    :type signature: str
 
     :example:
 
@@ -293,7 +345,7 @@ def dbus_property(access: PropertyAccess = PropertyAccess.READWRITE,
     @no_type_check_decorator
     def decorator(fn):
         options = {'name': name, 'access': access, 'disabled': disabled}
-        return _Property(fn, options=options)
+        return _Property(fn, options=options, signature=signature)
 
     return decorator
 
