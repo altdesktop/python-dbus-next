@@ -5,9 +5,8 @@ from .constants import (
     LITTLE_ENDIAN,
     BIG_ENDIAN,
     PROTOCOL_VERSION,
-    HEADER_NAME_MAP,
 )
-from ..constants import MessageType, MessageFlag, MESSAGE_FLAG_MAP, MESSAGE_TYPE_MAP
+from ..constants import MessageType, MessageFlag
 from ..signature import SignatureTree, SignatureType, Variant
 from ..errors import InvalidMessageError
 
@@ -233,7 +232,7 @@ class Unmarshaller:
             o = self.offset + 1
             self.offset += signature_len + 2  # one for the byte, one for the '\0'
             tree = SignatureTree._get(self.buf[o:o + signature_len].decode())
-            headers[HEADER_NAME_MAP[field_0]] = self.read_argument(tree.types[0])
+            headers[HeaderField(field_0).name] = self.read_argument(tree.types[0])
         return headers
 
     def _read_header(self):
@@ -243,8 +242,8 @@ class Unmarshaller:
         self.read_to_offset(HEADER_SIGNATURE_SIZE)
         buffer = self.buf
         endian = buffer[0]
-        self.message_type = MESSAGE_TYPE_MAP[buffer[1]]
-        self.flag = MESSAGE_FLAG_MAP[buffer[2]]
+        self.message_type = MessageType(buffer[1])
+        self.flag = MessageFlag(buffer[2])
         protocol_version = buffer[3]
 
         if endian != LITTLE_ENDIAN and endian != BIG_ENDIAN:
