@@ -53,14 +53,17 @@ class AuthExternal(Authenticator):
 
     :sealso: https://dbus.freedesktop.org/doc/dbus-specification.html#auth-protocol
     """
-    def __init__(self):
+    def __init__(self, uid=None):
         self.negotiate_unix_fd = False
         self.negotiating_fds = False
 
+        if uid is None:
+            uid = os.getuid()
+        self.hex_uid = str(uid).encode().hex()
+
     def _authentication_start(self, negotiate_unix_fd=False) -> str:
         self.negotiate_unix_fd = negotiate_unix_fd
-        hex_uid = str(os.getuid()).encode().hex()
-        return f'AUTH EXTERNAL {hex_uid}'
+        return f'AUTH EXTERNAL {self.hex_uid}'
 
     def _receive_line(self, line: str):
         response, args = _AuthResponse.parse(line)
