@@ -16,6 +16,3 @@ class HeaderField(Enum):
     SENDER = 7
     SIGNATURE = 8
     UNIX_FDS = 9
-
-
-HEADER_NAME_MAP = {field.value: field.name for field in HeaderField}
