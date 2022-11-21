@@ -15,8 +15,12 @@ async def test_tcp_connection_with_forwarding(event_loop):
 
     addr_info = parse_address(os.environ.get('DBUS_SESSION_BUS_ADDRESS'))
     assert addr_info
-    assert 'abstract' in addr_info[0][1]
-    path = f'\0{addr_info[0][1]["abstract"]}'
+    if 'abstract' in addr_info[0][1]:
+        path = f'\0{addr_info[0][1]["abstract"]}'
+    elif 'path' in addr_info[0][1]:
+        path = addr_info[0][1]['path']
+
+    assert path
 
     async def handle_connection(tcp_reader, tcp_writer):
         unix_reader, unix_writer = await asyncio.open_unix_connection(path)
