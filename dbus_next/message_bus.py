@@ -59,7 +59,7 @@ def echo_sender() -> 's':
 Attempts to access any attribute of `current_message` outside of a message context
 will result in a `LookupError` being raised.
 """
-current_message = ContextProxy("current_message")
+current_message = ReadOnlyContextProxy("current_message")
 
 
 class BaseMessageBus:
