@@ -2,6 +2,7 @@ from dbus_next.message import MessageFlag
 from dbus_next.service import ServiceInterface, method
 import dbus_next.introspection as intr
 from dbus_next import aio, glib, DBusError
+from dbus_next.message_bus import current_message
 from test.util import check_gi_repository, skip_reason_no_gi
 
 import pytest
@@ -37,6 +38,9 @@ class ExampleInterface(ServiceInterface):
     def ThrowsError(self):
         raise DBusError('test.error', 'something went wrong')
 
+    @method()
+    def UsesCurrentMessage(self) -> 's':
+        return current_message.sender
 
 @pytest.mark.asyncio
 async def test_aio_proxy_object():
@@ -78,6 +82,9 @@ async def test_aio_proxy_object():
 
     result = await interface.call_echo_string('no reply', flags=MessageFlag.NO_REPLY_EXPECTED)
     assert result is None
+
+    result = await interface.call_uses_current_message()
+    assert result
 
     with pytest.raises(DBusError):
         try:
@@ -130,3 +137,4 @@ def test_glib_proxy_object():
 
     bus.disconnect()
     bus2.disconnect()
+

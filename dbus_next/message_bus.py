@@ -9,6 +9,7 @@ from .signature import Variant
 from .proxy_object import BaseProxyObject
 from . import introspection as intr
 
+import contextvars
 import inspect
 import socket
 import logging
@@ -16,6 +17,21 @@ import xml.etree.ElementTree as ET
 import traceback
 
 from typing import Type, Callable, Optional, Union
+
+
+class ContextProxy:
+    def __init__(self, name):
+        self._obj = contextvars.ContextVar(name)
+
+    def __getattr__(self, name):
+        proxy = self._obj.get()
+        return getattr(proxy, name)
+
+    def set_value(self, value):
+        self._obj.set(value)
+
+
+current_message = ContextProxy("current_message")
 
 
 class BaseMessageBus:
@@ -661,6 +677,7 @@ class BaseMessageBus:
         return SendReply()
 
     def _process_message(self, msg):
+        current_message.set_value(msg)
         handled = False
 
         for handler in self._user_message_handlers:
