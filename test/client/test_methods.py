@@ -42,6 +42,7 @@ class ExampleInterface(ServiceInterface):
     def UsesCurrentMessage(self) -> 's':
         return current_message.sender
 
+
 @pytest.mark.asyncio
 async def test_aio_proxy_object():
     bus_name = 'aio.client.test.methods'
@@ -137,4 +138,3 @@ def test_glib_proxy_object():
 
     bus.disconnect()
     bus2.disconnect()
-

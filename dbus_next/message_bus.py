@@ -28,14 +28,14 @@ class ReadOnlyContextProxy:
 
     :param name: The name of the context variable.
     """
-    def __init__(self, name:str):
+    def __init__(self, name: str):
         self._obj = contextvars.ContextVar(name)
 
-    def __getattr__(self, name:str) -> Any:
+    def __getattr__(self, name: str) -> Any:
         proxy = self._obj.get()
         return getattr(proxy, name)
 
-    def set_value(self, value:Any):
+    def set_value(self, value: Any):
         """
         Set the value of the underlying context variable.
         """
