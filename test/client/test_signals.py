@@ -3,6 +3,7 @@ from dbus_next.aio import MessageBus
 from dbus_next import Message
 from dbus_next.introspection import Node
 from dbus_next.constants import RequestNameReply
+from dbus_next.message_bus import current_message
 
 import pytest
 
@@ -53,6 +54,7 @@ async def test_signals():
             nonlocal single_counter
             nonlocal err
             assert value == 'hello'
+            assert current_message.sender
             single_counter += 1
         except Exception as e:
             err = e
@@ -65,6 +67,7 @@ async def test_signals():
         try:
             assert value1 == 'hello'
             assert value2 == 'world'
+            assert current_message.sender
             multiple_counter += 1
         except Exception as e:
             err = e

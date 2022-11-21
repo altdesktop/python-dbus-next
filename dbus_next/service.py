@@ -88,7 +88,7 @@ def method(name: str = None, disabled: bool = False):
     def decorator(fn):
         @wraps(fn)
         def wrapped(*args, **kwargs):
-            fn(*args, **kwargs)
+            return fn(*args, **kwargs)
 
         fn_name = name if name else fn.__name__
         wrapped.__dict__['__DBUS_METHOD'] = _Method(fn, fn_name, disabled=disabled)
