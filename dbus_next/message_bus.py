@@ -16,21 +16,49 @@ import logging
 import xml.etree.ElementTree as ET
 import traceback
 
-from typing import Type, Callable, Optional, Union
+from typing import Type, Callable, Optional, Union, Any
 
 
-class ContextProxy:
-    def __init__(self, name):
+class ReadOnlyContextProxy:
+    """
+    A convenience class for making a context variable accessible as though it
+    were a local.  Any request for an attribute (other than `set_value`) on the
+    proxy will be passed through to the underlying variable.  Attributes are
+    immutable.
+
+    :param name: The name of the context variable.
+    """
+    def __init__(self, name:str):
         self._obj = contextvars.ContextVar(name)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name:str) -> Any:
         proxy = self._obj.get()
         return getattr(proxy, name)
 
-    def set_value(self, value):
+    def set_value(self, value:Any):
+        """
+        Set the value of the underlying context variable.
+        """
         self._obj.set(value)
 
 
+"""
+The :class:`Message <dbus.message.Message>` object currently being handled.
+
+Client code can use this to obtain access to details from the message without
+modifying their public API.  Typical use is:
+
+```
+from dbus_next.message_bus import current_message
+
+@method()
+def echo_sender() -> 's':
+    return current_message.sender
+```
+
+Attempts to access any attribute of `current_message` outside of a message context
+will result in a `LookupError` being raised.
+"""
 current_message = ContextProxy("current_message")
 
 
