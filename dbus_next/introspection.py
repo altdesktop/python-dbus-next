@@ -239,7 +239,6 @@ class Property:
                  name: str,
                  signature: str,
                  access: PropertyAccess = PropertyAccess.READWRITE):
-        assert_member_name_valid(name)
 
         tree = SignatureTree._get(signature)
         if len(tree.types) != 1:
