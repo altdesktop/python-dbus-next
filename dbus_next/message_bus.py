@@ -386,6 +386,7 @@ class BaseMessageBus:
         self._user_disconnect = True
         try:
             self._sock.shutdown(socket.SHUT_RDWR)
+            self._sock.close()
         except Exception:
             logging.warning('could not shut down socket', exc_info=True)
 
