@@ -93,7 +93,20 @@ def replace_idx_with_fds(signature: Union[str, SignatureTree], body: List[Any],
     return body
 
 
-def parse_annotation(annotation: str) -> str:
+def select_annotated_metadata(annotation) -> str:
+    '''
+    An PEP 593 Annotated instance (and the typing_extensions versions of that)
+    may contain multiple types of metadata, designed to be used by multiple
+    different libraries. To support that we only select string constants from
+    the annotation metadata and ignore others
+    '''
+    for meta_annotation in annotation.__metadata__:
+        if type(meta_annotation) is str:
+            return meta_annotation
+    raise ValueError("service annotation using PEP 593 Annotated must contain a string constant")
+
+
+def parse_annotation(annotation) -> str:
     '''
     Because of PEP 563, if `from __future__ import annotations` is used in code
     or on Python version >=3.10 where this is the default, return annotations
@@ -106,6 +119,12 @@ def parse_annotation(annotation: str) -> str:
 
     if not annotation or annotation is inspect.Signature.empty:
         return ''
+
+    # checking with hasattr because th python 3.6 version of
+    # typing_extensions.Annotated does not support isinstance
+    if hasattr(annotation, "__metadata__"):
+        annotation = select_annotated_metadata(annotation)
+
     if type(annotation) is not str:
         raise_value_error()
     try:
