@@ -33,6 +33,10 @@ If any file descriptors are sent or received (DBus type ``h``), the variable ref
                                    method, dbus_property, signal)
     from dbus_next import Variant, DBusError
 
+    # Optional:
+    from typing_extensions import Annotated
+    # from typing import Annotated # Python >= 3.9
+
     import asyncio
 
     class ExampleInterface(ServiceInterface):
@@ -64,12 +68,14 @@ If any file descriptors are sent or received (DBus type ``h``), the variable ref
         def Changed(self) -> 'b':
             return True
 
+        # Alternative type hint using Annotated.
+        # Requires either Python 3.9 or typing-extensions
         @dbus_property()
-        def Bar(self) -> 'y':
+        def Bar(self) -> Annotated[int, 'y']:
             return self._bar
 
         @Bar.setter
-        def Bar(self, val: 'y'):
+        def Bar(self, val: Annotated[int, 'y']):
             if self._bar == val:
                 return
 
