@@ -15,6 +15,7 @@ from asyncio import Queue
 import socket
 from copy import copy
 from typing import Optional
+import errno
 
 
 def _future_set_exception(fut, exc):
@@ -43,32 +44,38 @@ class _MessageWriter:
     def write_callback(self):
         try:
             while True:
-                if self.buf is None:
-                    if self.messages.qsize() == 0:
-                        # nothing more to write
-                        self.loop.remove_writer(self.fd)
+                try:
+                    if self.buf is None:
+                        if self.messages.qsize() == 0:
+                            # nothing more to write
+                            self.loop.remove_writer(self.fd)
+                            return
+                        buf, unix_fds, fut = self.messages.get_nowait()
+                        self.unix_fds = unix_fds
+                        self.buf = memoryview(buf)
+                        self.offset = 0
+                        self.fut = fut
+
+                    if self.unix_fds and self.negotiate_unix_fd:
+                        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                    array.array("i", self.unix_fds))]
+                        self.offset += self.sock.sendmsg([self.buf[self.offset:]], ancdata)
+                        self.unix_fds = None
+                    else:
+                        self.offset += self.sock.send(self.buf[self.offset:])
+
+                    if self.offset >= len(self.buf):
+                        # finished writing
+                        self.buf = None
+                        _future_set_result(self.fut, None)
+                    else:
+                        # wait for writable
                         return
-                    buf, unix_fds, fut = self.messages.get_nowait()
-                    self.unix_fds = unix_fds
-                    self.buf = memoryview(buf)
-                    self.offset = 0
-                    self.fut = fut
+                except OSError as e:
+                    if e.errno == errno.EAGAIN:
+                        return
+                    raise
 
-                if self.unix_fds and self.negotiate_unix_fd:
-                    ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
-                                array.array("i", self.unix_fds))]
-                    self.offset += self.sock.sendmsg([self.buf[self.offset:]], ancdata)
-                    self.unix_fds = None
-                else:
-                    self.offset += self.sock.send(self.buf[self.offset:])
-
-                if self.offset >= len(self.buf):
-                    # finished writing
-                    self.buf = None
-                    _future_set_result(self.fut, None)
-                else:
-                    # wait for writable
-                    return
         except Exception as e:
             _future_set_exception(self.fut, e)
             self.bus._finalize(e)
