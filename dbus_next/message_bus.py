@@ -14,8 +14,8 @@ import socket
 import logging
 import xml.etree.ElementTree as ET
 import traceback
-
-from typing import Type, Callable, Optional, Union
+import asyncio
+from typing import Type, Callable, Optional, Union, Coroutine
 
 
 class BaseMessageBus:
@@ -665,8 +665,10 @@ class BaseMessageBus:
 
         for handler in self._user_message_handlers:
             try:
-                result = handler(msg)
-                if result:
+                result = handler(msg) 
+                if isinstance(result, Coroutine):
+                    asyncio.create_task(result)
+                elif result:
                     if type(result) is Message:
                         self.send(result)
                     handled = True
